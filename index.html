@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Work Pay Calculator — Mobile</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="app">
+    <header class="m-header">
+        <div class="brand">
+            <svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true">
+                <defs>
+                    <linearGradient id="g1" x1="0" x2="1">
+                        <stop offset="0" stop-color="#4da3ff"/>
+                        <stop offset="1" stop-color="#60d394"/>
+                    </linearGradient>
+                </defs>
+                <path fill="url(#g1)" d="M44 11.3c0 2.7-4.16 5.1-10.31 6.34C39.84 18.9 44 21.26 44 24s-4.16 5.1-10.31 6.36C39.84 31.6 44 33.99 44 36.73 44 40.74 35.05 44 24 44S4 40.74 4 36.73c0-2.74 4.16-5.13 10.31-6.37C8.16 29.1 4 26.74 4 24s4.16-5.1 10.31-6.36C8.16 16.4 4 14.01 4 11.27 4 7.26 12.95 4 24 4s20 3.26 20 7.27Z"/>
+            </svg>
+            <h1>PayCalc</h1>
+        </div>
+
+        <button class="icon-btn" id="openSettingsBtn" aria-label="Open settings">
+            <svg class="i" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="currentColor" d="M12 8a2 2 0 1 0 .001 4.001A2 2 0 0 0 12 8m8.94 2.34-1.66-.96.02-.2a6.77 6.77 0 0 0-.49-1.16l.96-1.67-1.42-1.42-1.67.96c-.37-.22-.76-.39-1.16-.49l-.2-.02-.96-1.66h-2l-.96 1.66-.2.02c-.4.1-.79.27-1.16.49l-1.67-.96-1.41 1.42.96 1.67c-.22.37-.39.76-.49 1.16l-.02.2-1.66.96v2l1.66.96.02.2c.1.4.27.79.49 1.16l-.96 1.67 1.41 1.41 1.67-.96c.37.22.76.39 1.16.49l.2.02.96 1.66h2l.96-1.66.2-.02c.4-.1.79-.27 1.16-.49l1.67.96 1.42-1.41-.96-1.67c.22-.37.39-.76.49-1.16l.02-.2 1.66-.96v-2Z"/>
+            </svg>
+        </button>
+    </header>
+
+    <main class="m-main">
+        <!-- Quick Add (today) -->
+        <section class="card quick-add">
+            <form id="quickAddForm" autocomplete="off" novalidate>
+                <div class="row">
+                    <label class="control">
+                        <span class="lab">Date</span>
+                        <input type="date" id="qa_date" required />
+                    </label>
+                </div>
+                <div class="row two">
+                    <label class="control">
+                        <span class="lab">Start</span>
+                        <input type="time" id="qa_start" required />
+                    </label>
+                    <label class="control">
+                        <span class="lab">End</span>
+                        <input type="time" id="qa_end" required />
+                    </label>
+                </div>
+                <div class="row two">
+                    <label class="control">
+                        <span class="lab">Break (min)</span>
+                        <input type="number" id="qa_break" inputmode="numeric" min="0" step="5" value="60" />
+                    </label>
+                    <label class="control chk">
+                        <span class="lab">Holiday?</span>
+                        <input type="checkbox" id="qa_holiday" />
+                    </label>
+                </div>
+                <button class="btn-primary" id="qa_addBtn" type="submit">
+                    <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11 11V6h2v5h5v2h-5v5h-2v-5H6v-2z"/></svg>
+                    Add Today
+                </button>
+            </form>
+        </section>
+
+        <!-- Entries list (your “raws”) -->
+        <section class="entry-list" id="entryList">
+            <!-- Cards injected by JS -->
+        </section>
+
+        <!-- Floating add button (optional second entry point) -->
+        <button id="fabAdd" class="fab" aria-label="Add a new row">
+            <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11 11V6h2v5h5v2h-5v5h-2v-5H6v-2z"/></svg>
+        </button>
+    </main>
+
+    <!-- Settings Sheet (full-screen mobile) -->
+    <aside id="settingsSheet" class="sheet" aria-hidden="true" tabindex="-1">
+        <div class="sheet-head">
+            <h2>Settings</h2>
+            <button id="closeSettingsBtn" class="icon-btn" aria-label="Close settings">
+                <svg class="i" viewBox="0 0 24 24"><path fill="currentColor" d="M18.3 5.71 12 12l6.3 6.29-1.42 1.42L10.59 13.4 4.3 19.71 2.89 18.3 9.17 12 2.89 5.71 4.3 4.29 10.6 10.6l6.29-6.3z"/></svg>
+            </button>
+        </div>
+
+        <form id="settingsForm" class="sheet-body" autocomplete="off" novalidate>
+            <fieldset class="group">
+                <legend>Rates & Overtime</legend>
+                <label class="control">
+                    <span class="lab">Hourly Rate (R/hour)</span>
+                    <input type="number" id="s_hourly" min="0" step="0.01" required />
+                </label>
+                <div class="row two">
+                    <label class="control">
+                        <span class="lab">OT Threshold (hours/day)</span>
+                        <input type="number" id="s_otThreshold" min="0" step="0.25" value="8" required />
+                    </label>
+                    <label class="control">
+                        <span class="lab">OT Multiplier</span>
+                        <input type="number" id="s_otMultiplier" min="1" step="0.1" value="1.5" required />
+                    </label>
+                </div>
+                <div class="row two">
+                    <label class="control">
+                        <span class="lab">Sunday Multiplier</span>
+                        <input type="number" id="s_sunMult" min="1" step="0.1" value="2" />
+                    </label>
+                    <label class="control">
+                        <span class="lab">Holiday Multiplier</span>
+                        <input type="number" id="s_holMult" min="1" step="0.1" value="2" />
+                    </label>
+                </div>
+                <label class="control chk">
+                    <span class="lab">Apply OT on Sundays/Holidays too</span>
+                    <input type="checkbox" id="s_applyOtOnSpecial" />
+                </label>
+            </fieldset>
+
+            <fieldset class="group">
+                <legend>Pay Cycle & Display</legend>
+                <div class="row two">
+                    <label class="control">
+                        <span class="lab">Pay Cycle Start Day</span>
+                        <input type="number" id="s_cycleStart" min="1" max="28" value="21" />
+                    </label>
+                    <label class="control">
+                        <span class="lab">Currency Symbol</span>
+                        <input type="text" id="s_currency" maxlength="4" placeholder="R / $ / €" />
+                    </label>
+                </div>
+                <label class="control">
+                    <span class="lab">Default Break (minutes)</span>
+                    <input type="number" id="s_defaultBreak" min="0" step="5" value="60" />
+                </label>
+            </fieldset>
+
+            <fieldset class="group">
+                <legend>Week Template (auto-fill)</legend>
+                <p class="helper">Leave start/end empty to mark day off.</p>
+                <div class="week">
+                    <!-- Sunday -->
+                    <label class="control">
+                        <span class="lab">Sun Start</span>
+                        <input type="time" id="w0_start" value="08:00" />
+                    </label>
+                    <label class="control">
+                        <span class="lab">Sun End</span>
+                        <input type="time" id="w0_end" value="16:00" />
+                    </label>
+                    <!-- Monday -->
+                    <label class="control">
+                        <span class="lab">Mon Start</span>
+                        <input type="time" id="w1_start" value="08:00" />
+                    </label>
+                    <label class="control">
+                        <span class="lab">Mon End</span>
+                        <input type="time" id="w1_end" value="17:00" />
+                    </label>
+                    <!-- Tuesday -->
+                    <label class="control">
+                        <span class="lab">Tue Start</span>
+                        <input type="time" id="w2_start" value="08:00" />
+                    </label>
+                    <label class="control">
+                        <span class="lab">Tue End</span>
+                        <input type="time" id="w2_end" value="17:00" />
+                    </label>
+                    <!-- Wednesday -->
+                    <label class="control">
+                        <span class="lab">Wed Start</span>
+                        <input type="time" id="w3_start" value="08:00" />
+                    </label>
+                    <label class="control">
+                        <span class="lab">Wed End</span>
+                        <input type="time" id="w3_end" value="17:00" />
+                    </label>
+                    <!-- Thursday -->
+                    <label class="control">
+                        <span class="lab">Thu Start</span>
+                        <input type="time" id="w4_start" value="08:00" />
+                    </label>
+                    <label class="control">
+                        <span class="lab">Thu End</span>
+                        <input type="time" id="w4_end" value="17:00" />
+                    </label>
+                    <!-- Friday -->
+                    <label class="control">
+                        <span class="lab">Fri Start</span>
+                        <input type="time" id="w5_start" value="08:00" />
+                    </label>
+                    <label class="control">
+                        <span class="lab">Fri End</span>
+                        <input type="time" id="w5_end" value="17:00" />
+                    </label>
+                    <!-- Saturday -->
+                    <label class="control">
+                        <span class="lab">Sat Start</span>
+                        <input type="time" id="w6_start" value="08:00" />
+                    </label>
+                    <label class="control">
+                        <span class="lab">Sat End</span>
+                        <input type="time" id="w6_end" value="13:00" />
+                    </label>
+                </div>
+            </fieldset>
+
+            <div class="sheet-actions">
+                <button class="btn-secondary" type="button" id="autoFillCycleBtn">Auto-Fill Cycle (21→20)</button>
+                <button class="btn-primary" type="submit" id="saveSettingsBtn">
+                    <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M17 3H7a2 2 0 0 0-2 2v14l7-3 7 3V5a2 2 0 0 0-2-2z"/></svg>
+                    Save Settings
+                </button>
+            </div>
+        </form>
+    </aside>
+
+    <template id="entryCardTpl">
+        <article class="card entry">
+            <div class="entry-top">
+                <div class="datecol">
+                    <span class="dayname"></span>
+                    <span class="datestr"></span>
+                </div>
+                <div class="paycol">
+                    <span class="amount"></span>
+                    <span class="rate"></span>
+                </div>
+            </div>
+            <div class="entry-mid">
+                <span class="chip start"></span>
+                <span class="chip end"></span>
+                <span class="chip break"></span>
+                <span class="chip sunday hide">Sunday</span>
+                <span class="chip holiday hide">Holiday</span>
+            </div>
+            <div class="entry-actions">
+                <button class="btn-ghost edit">Edit</button>
+                <button class="btn-danger remove">Remove</button>
+            </div>
+        </article>
+    </template>
+
+    <script src="app.js" defer></script>
+</body>
+</html>
