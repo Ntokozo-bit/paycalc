@@ -73,6 +73,11 @@
                         <input type="checkbox" id="qa_holiday" />
                     </label>
                 </div>
+                <label class="control chk">
+                    <span class="lab">Apply Overtime Automatically (normal days only)</span>
+                    <input type="checkbox" id="qa_applyOt" checked />
+                </label>
+                <p class="helper">Set when overtime starts in Settings. Sundays and holidays double all worked hours instead of adding overtime on top.</p>
                 <button class="btn-primary" id="qa_addBtn" type="submit">
                     <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11 11V6h2v5h5v2h-5v5h-2v-5H6v-2z"/></svg>
                     Add Today
@@ -107,7 +112,7 @@
                 </label>
                 <div class="row two">
                     <label class="control">
-                        <span class="lab">OT Threshold (hours/day)</span>
+                        <span class="lab">OT Starts After (hours/day)</span>
                         <input type="number" id="s_otThreshold" min="0" step="0.25" value="8" required />
                     </label>
                     <label class="control">
@@ -125,10 +130,7 @@
                         <input type="number" id="s_holMult" min="1" step="0.1" value="2" />
                     </label>
                 </div>
-                <label class="control chk">
-                    <span class="lab">Apply OT on Sundays/Holidays too</span>
-                    <input type="checkbox" id="s_applyOtOnSpecial" />
-                </label>
+                <p class="helper">Sundays and holidays use the double-pay multiplier for all worked hours. Overtime is only used on normal days.</p>
             </fieldset>
 
             <fieldset class="group">
@@ -201,6 +203,7 @@
                     <label class="control"><span class="lab">End</span><input type="time" id="ed_end" /></label>
                 </div>
                 <label class="control"><span class="lab">Break (min)</span><input type="number" id="ed_break" min="0" step="5" /></label>
+                <label class="control chk"><span class="lab">Apply Overtime Automatically (normal days only)</span><input type="checkbox" id="ed_applyOt" checked /></label>
             </fieldset>
 
             <fieldset class="group">
@@ -212,17 +215,14 @@
                 <div id="ed_overrides" class="overrides" hidden>
                     <label class="control"><span class="lab">Hourly Rate</span><input type="number" id="ed_hourly" min="0" step="0.01" /></label>
                     <div class="row two">
-                        <label class="control"><span class="lab">OT Threshold (h/day)</span><input type="number" id="ed_otTh" min="0" step="0.25" /></label>
+                        <label class="control"><span class="lab">OT Starts After (h/day)</span><input type="number" id="ed_otTh" min="0" step="0.25" /></label>
                         <label class="control"><span class="lab">OT Multiplier</span><input type="number" id="ed_otMul" min="1" step="0.1" /></label>
                     </div>
                     <div class="row two">
                         <label class="control"><span class="lab">Sunday Multiplier</span><input type="number" id="ed_sunMul" min="1" step="0.1" /></label>
                         <label class="control"><span class="lab">Holiday Multiplier</span><input type="number" id="ed_holMul" min="1" step="0.1" /></label>
                     </div>
-                    <label class="control chk">
-                        <span class="lab">Apply OT on Sundays/Holidays too</span>
-                        <input type="checkbox" id="ed_applySpecialOT" />
-                    </label>
+                    <p class="helper">These overrides still follow the same rule: Sundays and holidays double all hours, without extra overtime on top.</p>
                 </div>
             </fieldset>
 
@@ -244,14 +244,14 @@
         <div class="sheet-body">
             <div class="help">
                 <ol>
-                    <li><strong>Set your Settings</strong> (gear icon): hourly rate, overtime rules, Sunday/holiday multipliers, default break, and your week template. Save.</li>
+                    <li><strong>Set your Settings</strong> (gear icon): hourly rate, when overtime starts, Sunday/holiday multipliers, default break, and your week template. Save.</li>
                     <li><strong>Add Today</strong>: the blue button uses today’s date automatically. It fills start/end from your week template and default break. If you want, adjust hours/break before tapping.</li>
-                    <li><strong>Edit a day</strong>: tap <em>Edit</em> on a card. A full-screen editor opens. You can change time, break, holiday, and even override rates just for that day.</li>
+                    <li><strong>Edit a day</strong>: tap <em>Edit</em> on a card. A full-screen editor opens. You can change time, break, holiday, turn overtime on or off for that day, and even override rates just for that day.</li>
                     <li><strong>Totals</strong>: the bar under the header shows <em>this month</em> and the <em>21→20 cycle</em> totals. Both update live as you add/edit.</li>
                     <li><strong>Download CSV</strong>: the round button at the bottom saves your data to a CSV file you can open in Excel/Sheets.</li>
                     <li><strong>Auto-Fill Cycle</strong>: in Settings, press “Auto-Fill Current Cycle” to pre-create rows for each day based on your week template (easy mass editing).</li>
                 </ol>
-                <p class="note">All data stays on your phone (local storage). No internet needed.</p>
+                <p class="note">All data stays on your phone (local storage). Sundays and holidays double all worked hours, and overtime is only used on normal days.</p>
             </div>
         </div>
     </aside>
@@ -272,6 +272,7 @@
                 <span class="chip start"></span>
                 <span class="chip end"></span>
                 <span class="chip break"></span>
+                <span class="chip paydetail hide"></span>
                 <span class="chip sunday hide">Sunday</span>
                 <span class="chip holiday hide">Holiday</span>
             </div>

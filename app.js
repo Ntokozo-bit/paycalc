@@ -41,7 +41,6 @@
         s_otMultiplier: document.getElementById("s_otMultiplier"),
         s_sunMult: document.getElementById("s_sunMult"),
         s_holMult: document.getElementById("s_holMult"),
-        s_applyOtOnSpecial: document.getElementById("s_applyOtOnSpecial"),
         s_cycleStart: document.getElementById("s_cycleStart"),
         s_currency: document.getElementById("s_currency"),
         s_defaultBreak: document.getElementById("s_defaultBreak"),
@@ -58,6 +57,7 @@
         qa_end: document.getElementById("qa_end"),
         qa_break: document.getElementById("qa_break"),
         qa_holiday: document.getElementById("qa_holiday"),
+        qa_applyOt: document.getElementById("qa_applyOt"),
 
         // entries
         list: document.getElementById("entryList"),
@@ -81,7 +81,7 @@
         ed_otMul: document.getElementById("ed_otMul"),
         ed_sunMul: document.getElementById("ed_sunMul"),
         ed_holMul: document.getElementById("ed_holMul"),
-        ed_applySpecialOT: document.getElementById("ed_applySpecialOT"),
+        ed_applyOt: document.getElementById("ed_applyOt"),
         ed_cancel: document.getElementById("ed_cancel"),
         ed_save: document.getElementById("ed_save"),
     };
@@ -93,7 +93,6 @@
         otMultiplier: 1.5,
         sundayMultiplier: 2,
         holidayMultiplier: 2,
-        applyOtOnSpecial: false,
         cycleStartDay: 21,
         currency: "R",
         defaultBreak: 60,
@@ -108,7 +107,7 @@
         ]
     };
 
-    // entries: {id,dateISO,start,end,breakMin,isHoliday, overrides?:{...}}
+    // entries: {id,dateISO,start,end,breakMin,isHoliday,applyOvertime,createdAt,overrides?:{...}}
     let entries = loadEntries() || [];
 
     // ===== Utils
@@ -129,17 +128,144 @@
         catch { return (n||0).toFixed(2); }
     }
     function isSunday(date) { return new Date(date).getDay() === 0; }
-    function startOfTodayISO() {
+    function startOfToday() {
         const now = new Date();
-        return new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+        return new Date(now.getFullYear(), now.getMonth(), now.getDate());
     }
-    function ymd(date) { return new Date(date).toISOString().slice(0,10); }
+    function startOfTodayISO() {
+        return startOfToday().toISOString();
+    }
+    function parseInputDate(str) {
+        if (typeof str !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(str)) return null;
+        const [y, m, d] = str.split("-").map(Number);
+        const date = new Date(y, m - 1, d);
+        if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) return null;
+        return date;
+    }
+    function toDate(value) {
+        if (value instanceof Date) return new Date(value.getTime());
+        if (typeof value === "string") {
+            if (/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) {
+                return parseInputDate(value);
+            }
+            const parsed = new Date(value);
+            if (!Number.isNaN(parsed.getTime())) return parsed;
+        } else if (typeof value === "number") {
+            const parsed = new Date(value);
+            if (!Number.isNaN(parsed.getTime())) return parsed;
+        }
+        return null;
+    }
+    function ymd(value) {
+        const d = toDate(value);
+        if (!d) return "";
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return `${y}-${m}-${day}`;
+    }
+    function addDays(value, days) {
+        const d = toDate(value);
+        if (!d || !Number.isFinite(days)) return null;
+        const copy = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        copy.setDate(copy.getDate() + days);
+        return copy;
+    }
+    const PUBLIC_HOLIDAY_CACHE = new Map();
+    const FIXED_PUBLIC_HOLIDAYS = [
+        { month: 0, day: 1 },  // New Year's Day
+        { month: 2, day: 21 }, // Human Rights Day
+        { month: 3, day: 27 }, // Freedom Day
+        { month: 4, day: 1 },  // Workers' Day
+        { month: 5, day: 16 }, // Youth Day
+        { month: 7, day: 9 },  // National Women's Day
+        { month: 8, day: 24 }, // Heritage Day
+        { month: 11, day: 16 },// Day of Reconciliation
+        { month: 11, day: 25 },// Christmas Day
+        { month: 11, day: 26 } // Day of Goodwill
+    ];
+    function calcEasterSunday(year) {
+        const a = year % 19;
+        const b = Math.floor(year / 100);
+        const c = year % 100;
+        const d = Math.floor(b / 4);
+        const e = b % 4;
+        const f = Math.floor((b + 8) / 25);
+        const g = Math.floor((b - f + 1) / 3);
+        const h = (19 * a + b - d - g + 15) % 30;
+        const i = Math.floor(c / 4);
+        const k = c % 4;
+        const l = (32 + 2 * e + 2 * i - h - k) % 7;
+        const m = Math.floor((a + 11 * h + 22 * l) / 451);
+        const month = Math.floor((h + l - 7 * m + 114) / 31) - 1;
+        const day = ((h + l - 7 * m + 114) % 31) + 1;
+        return new Date(year, month, day);
+    }
+    function registerHoliday(set, date) {
+        if (!(date instanceof Date) || Number.isNaN(date.getTime())) return;
+        set.add(ymd(date));
+        if (date.getDay() === 0) {
+            const observed = addDays(date, 1);
+            if (observed) set.add(ymd(observed));
+        }
+    }
+    function computePublicHolidays(year) {
+        if (PUBLIC_HOLIDAY_CACHE.has(year)) return PUBLIC_HOLIDAY_CACHE.get(year);
+        const set = new Set();
+        for (const fixed of FIXED_PUBLIC_HOLIDAYS) {
+            registerHoliday(set, new Date(year, fixed.month, fixed.day));
+        }
+        const easter = calcEasterSunday(year);
+        const goodFriday = addDays(easter, -2);
+        const familyDay = addDays(easter, 1);
+        if (goodFriday) registerHoliday(set, goodFriday);
+        if (familyDay) registerHoliday(set, familyDay);
+        PUBLIC_HOLIDAY_CACHE.set(year, set);
+        return set;
+    }
+    function isAutoHoliday(value) {
+        const d = toDate(value);
+        if (!d) return false;
+        const holidays = computePublicHolidays(d.getFullYear());
+        return holidays.has(ymd(d));
+    }
 
     // ===== Load/Save
     function loadSettings(){ try{ return JSON.parse(localStorage.getItem(STORE.SETTINGS)||"null"); }catch{ return null; } }
     function saveSettings(){ try{ localStorage.setItem(STORE.SETTINGS, JSON.stringify(settings)); }catch{} }
     function loadEntries(){ try{ return JSON.parse(localStorage.getItem(STORE.ENTRIES)||"null")||[]; }catch{ return []; } }
     function saveEntries(){ try{ localStorage.setItem(STORE.ENTRIES, JSON.stringify(entries)); }catch{} }
+    function nextCreatedAt(){ return Date.now() + Math.random(); }
+    function usesOvertime(row){ return row.applyOvertime !== false; }
+    function normalizeEntry(row, index){
+        const source = row && typeof row === "object" ? row : {};
+        const date = toDate(source.dateISO) || startOfToday();
+        const overrides = source.overrides && typeof source.overrides === "object"
+            ? { ...source.overrides, useGlobal: source.overrides.useGlobal !== false }
+            : { useGlobal: true };
+
+        return {
+            id: source.id || `${date.getTime()}_${index}`,
+            dateISO: date.toISOString(),
+            start: source.start || "",
+            end: source.end || "",
+            breakMin: clamp(source.breakMin ?? 0, 0, 24*60),
+            isHoliday: !!source.isHoliday,
+            applyOvertime: usesOvertime(source),
+            createdAt: Number.isFinite(+source.createdAt) ? +source.createdAt : (date.getTime() + index),
+            overrides
+        };
+    }
+    function normalizeEntries(rows){
+        return (Array.isArray(rows) ? rows : []).map((row, index) => normalizeEntry(row, index));
+    }
+    function compareEntriesDesc(a, b){
+        const createdDiff = (+b.createdAt || 0) - (+a.createdAt || 0);
+        if (createdDiff !== 0) return createdDiff;
+        if (a.dateISO > b.dateISO) return -1;
+        if (a.dateISO < b.dateISO) return 1;
+        return String(b.id || "").localeCompare(String(a.id || ""));
+    }
 
     // ===== Calculations
     function resolveRates(row){
@@ -150,8 +276,7 @@
                 otThreshold: clamp(o.otThreshold ?? settings.otThreshold, 0, 24),
                 otMultiplier: clamp(o.otMultiplier ?? settings.otMultiplier, 1, 10),
                 sundayMultiplier: clamp(o.sundayMultiplier ?? settings.sundayMultiplier, 1, 10),
-                holidayMultiplier: clamp(o.holidayMultiplier ?? settings.holidayMultiplier, 1, 10),
-                applyOtOnSpecial: !!(o.applyOtOnSpecial ?? settings.applyOtOnSpecial)
+                holidayMultiplier: clamp(o.holidayMultiplier ?? settings.holidayMultiplier, 1, 10)
             };
         }
         return {...settings};
@@ -168,7 +293,7 @@
         const otMul = rates.otMultiplier;
         const sunMul = rates.sundayMultiplier;
         const holMul = rates.holidayMultiplier;
-        const applySpecialOT = !!rates.applyOtOnSpecial;
+        const applyOvertime = usesOvertime(row);
 
         const sMin = parseTime(row.start);
         const eMin = parseTime(row.end);
@@ -182,28 +307,35 @@
         }
         const hours = totalMin/60;
 
-        const specialMult = holiday ? holMul : (sunday ? sunMul : 1);
-        let normalH = 0, otH = 0;
+        const specialType = holiday ? "holiday" : (sunday ? "sunday" : "");
+        const specialMult = specialType === "holiday" ? holMul : (specialType === "sunday" ? sunMul : 1);
+        let normalH = 0, otH = 0, specialH = 0;
 
-        if (specialMult > 1) {
-            if (applySpecialOT) {
-                normalH = Math.min(hours, otTh);
-                otH = Math.max(0, hours - otTh);
-            } else {
-                normalH = hours;
-                otH = 0;
-            }
-        } else {
+        if (specialType) {
+            specialH = hours;
+        } else if (applyOvertime) {
             normalH = Math.min(hours, otTh);
             otH = Math.max(0, hours - otTh);
+        } else {
+            normalH = hours;
         }
 
-        const normalPay = normalH * hr * specialMult;
-        const otPay = (applySpecialOT && specialMult > 1)
-            ? otH * hr * specialMult * otMul
-            : otH * hr * otMul;
+        const normalPay = normalH * hr;
+        const otPay = otH * hr * otMul;
+        const specialPay = specialH * hr * specialMult;
 
-        return { hours, normalH, otH, amount: normalPay + otPay, multiplier: specialMult };
+        return {
+            hours,
+            normalH,
+            otH,
+            specialH,
+            amount: normalPay + otPay + specialPay,
+            multiplier: specialMult,
+            specialType,
+            usesOvertime: applyOvertime,
+            otThreshold: otTh,
+            otMultiplier: otMul
+        };
     }
 
     // Totals for calendar month / cycle
@@ -246,10 +378,22 @@
 
     // ===== Render
     function render() {
-        entries.sort((a,b)=> a.dateISO<b.dateISO?-1:a.dateISO>b.dateISO?1:0);
         el.list.textContent = "";
-        for (const row of entries) el.list.appendChild(buildCard(row));
+        for (const row of [...entries].sort(compareEntriesDesc)) el.list.appendChild(buildCard(row));
         computeTotals();
+    }
+    function buildRateText(calc) {
+        if (calc.specialType === "holiday") return `Holiday x${calc.multiplier.toFixed(2)} on all hours`;
+        if (calc.specialType === "sunday") return `Sunday x${calc.multiplier.toFixed(2)} on all hours`;
+        if (calc.otH > 0) return `OT x${calc.otMultiplier.toFixed(2)} after ${calc.otThreshold.toFixed(2)}h`;
+        if (!calc.usesOvertime) return "Overtime removed";
+        return "Standard pay";
+    }
+    function buildPayDetailText(calc) {
+        if (calc.specialH > 0) return `Double ${calc.specialH.toFixed(2)}h`;
+        if (calc.otH > 0) return `OT ${calc.otH.toFixed(2)}h`;
+        if (!calc.usesOvertime) return "OT Off";
+        return "";
     }
 
     function buildCard(row) {
@@ -260,11 +404,17 @@
 
         const calc = calcRow(row);
         node.querySelector(".amount").textContent = (settings.currency || "R") + " " + fmtMoney(calc.amount);
-        node.querySelector(".rate").textContent = `×${calc.multiplier.toFixed(2)}`;
+        node.querySelector(".rate").textContent = buildRateText(calc);
 
         node.querySelector(".start").textContent = "Start " + (row.start || "—");
         node.querySelector(".end").textContent = "End " + (row.end || "—");
         node.querySelector(".break").textContent = "Break " + (row.breakMin ?? 0) + "m";
+        const payDetailText = buildPayDetailText(calc);
+        if (payDetailText) {
+            const payDetail = node.querySelector(".paydetail");
+            payDetail.textContent = payDetailText;
+            payDetail.classList.remove("hide");
+        }
 
         if (isSunday(row.dateISO)) node.querySelector(".sunday").classList.remove("hide");
         if (row.isHoliday) node.querySelector(".holiday").classList.remove("hide");
@@ -275,7 +425,7 @@
     }
 
     // ===== Row CRUD
-    function addRow(dateISO, start, end, breakMin, isHoliday, overrides) {
+    function addRow(dateISO, start, end, breakMin, isHoliday, applyOvertime, overrides) {
         entries.push({
             id: cryptoId(),
             dateISO,
@@ -283,6 +433,8 @@
             end: end || "",
             breakMin: clamp(breakMin, 0, 24*60),
             isHoliday: !!isHoliday,
+            applyOvertime: applyOvertime !== false,
+            createdAt: nextCreatedAt(),
             overrides: overrides || { useGlobal: true }
         });
         saveEntries();
@@ -307,7 +459,6 @@
         el.s_otMultiplier.value = settings.otMultiplier ?? 1.5;
         el.s_sunMult.value = settings.sundayMultiplier ?? 2;
         el.s_holMult.value = settings.holidayMultiplier ?? 2;
-        el.s_applyOtOnSpecial.checked = !!settings.applyOtOnSpecial;
         el.s_cycleStart.value = settings.cycleStartDay ?? 21;
         el.s_currency.value = settings.currency ?? "R";
         el.s_defaultBreak.value = settings.defaultBreak ?? 60;
@@ -323,7 +474,6 @@
             otMultiplier: clamp(el.s_otMultiplier.value, 1, 10),
             sundayMultiplier: clamp(el.s_sunMult.value, 1, 10),
             holidayMultiplier: clamp(el.s_holMult.value, 1, 10),
-            applyOtOnSpecial: !!el.s_applyOtOnSpecial.checked,
             cycleStartDay: clamp(el.s_cycleStart.value, 1, 28),
             currency: String(el.s_currency.value || "R").slice(0,4),
             defaultBreak: clamp(el.s_defaultBreak.value, 0, 24*60),
@@ -353,7 +503,7 @@
         for(let d=new Date(start); d<=end; d.setDate(d.getDate()+1)){
             const dow = d.getDay();
             const t = settings.weekTemplate[dow] || {start:"",end:""};
-            addRow(new Date(d).toISOString(), t.start||"", t.end||"", defBreak, false, {useGlobal:true});
+            addRow(new Date(d).toISOString(), t.start||"", t.end||"", defBreak, false, true, {useGlobal:true});
         }
     }
 
@@ -371,6 +521,7 @@
         el.ed_start.value = r.start || "";
         el.ed_end.value = r.end || "";
         el.ed_break.value = r.breakMin ?? settings.defaultBreak;
+        el.ed_applyOt.checked = usesOvertime(r);
 
         const useGlobal = !(r.overrides && r.overrides.useGlobal===false) ? true : false;
         el.ed_useGlobal.checked = useGlobal;
@@ -383,7 +534,6 @@
         el.ed_otMul.value = o.otMultiplier ?? "";
         el.ed_sunMul.value = o.sundayMultiplier ?? "";
         el.ed_holMul.value = o.holidayMultiplier ?? "";
-        el.ed_applySpecialOT.checked = !!o.applyOtOnSpecial;
 
         openSheet(el.editSheet);
     }
@@ -399,6 +549,7 @@
         r.start = el.ed_start.value || "";
         r.end = el.ed_end.value || "";
         r.breakMin = clamp(el.ed_break.value,0,24*60);
+        r.applyOvertime = !!el.ed_applyOt.checked;
 
         const useGlobal = !!el.ed_useGlobal.checked;
         if (useGlobal){
@@ -410,8 +561,7 @@
                 otThreshold: el.ed_otTh.value ? clamp(el.ed_otTh.value,0,24) : null,
                 otMultiplier: el.ed_otMul.value ? clamp(el.ed_otMul.value,1,10) : null,
                 sundayMultiplier: el.ed_sunMul.value ? clamp(el.ed_sunMul.value,1,10) : null,
-                holidayMultiplier: el.ed_holMul.value ? clamp(el.ed_holMul.value,1,10) : null,
-                applyOtOnSpecial: !!el.ed_applySpecialOT.checked
+                holidayMultiplier: el.ed_holMul.value ? clamp(el.ed_holMul.value,1,10) : null
             };
         }
         entries[i]=r; saveEntries(); render(); closeSheet(el.editSheet);
@@ -419,14 +569,15 @@
 
     // ===== Download CSV
     function exportCsv(){
-        const headers = ["Date","Day","Start","End","Break(min)","Holiday","NormalHours","OTHours","RateMultiplier","DayPay"];
-        const rows = entries.map(e=>{
+        const headers = ["Date","Day","Start","End","Break(min)","Holiday","AutoOT","NormalHours","OTHours","SpecialHours","SpecialType","DayPay"];
+        const rows = [...entries].sort(compareEntriesDesc).map(e=>{
             const d = new Date(e.dateISO);
             const c = calcRow(e);
             const day = d.toLocaleDateString(undefined,{weekday:"short"});
+            const autoOt = c.specialType ? "N/A" : (usesOvertime(e) ? "Yes" : "No");
             return [
-                ymd(e.dateISO), day, e.start||"", e.end||"", e.breakMin??0, e.isHoliday?"Yes":"No",
-                c.normalH.toFixed(2), c.otH.toFixed(2), c.multiplier.toFixed(2), c.amount.toFixed(2)
+                ymd(e.dateISO), day, e.start||"", e.end||"", e.breakMin??0, e.isHoliday?"Yes":"No", autoOt,
+                c.normalH.toFixed(2), c.otH.toFixed(2), c.specialH.toFixed(2), c.specialType || "normal", c.amount.toFixed(2)
             ].join(",");
         });
         const csv = [headers.join(","), ...rows].join("\n");
@@ -439,15 +590,33 @@
     }
 
     // ===== Quick Add behavior
-    function setAutoDate(){
-        el.qa_date.value = ymd(startOfTodayISO());
+    function autoTickHoliday(dateStr){
+        if (!dateStr) {
+            el.qa_holiday.checked = false;
+            return;
+        }
+        el.qa_holiday.checked = isAutoHoliday(dateStr);
     }
-    function prefillFromTemplateForToday(){
-        const dow = new Date().getDay();
+    function prefillQuickAddForDate(dateStr){
+        const date = parseInputDate(dateStr) || toDate(dateStr) || startOfToday();
+        const dow = date.getDay();
         el.qa_start.value = settings.weekTemplate[dow]?.start || "";
         el.qa_end.value = settings.weekTemplate[dow]?.end || "";
-        el.qa_break.value = settings.defaultBreak ?? 60;
-        el.qa_holiday.checked = false;
+        el.qa_break.value = clamp(settings.defaultBreak ?? 60, 0, 24*60);
+    }
+    function applyQuickAddDate(dateStr, prefillTimes){
+        if (!dateStr) return;
+        el.qa_date.value = dateStr;
+        autoTickHoliday(dateStr);
+        if (prefillTimes) {
+            prefillQuickAddForDate(dateStr);
+        }
+    }
+    function setAutoDate(){
+        applyQuickAddDate(ymd(startOfTodayISO()), true);
+    }
+    function prefillFromTemplateForToday(){
+        prefillQuickAddForDate(el.qa_date.value || ymd(startOfTodayISO()));
     }
 
     function submitQuickAdd(ev){
@@ -466,11 +635,16 @@
         }
         const brk = clamp(el.qa_break.value || settings.defaultBreak || 0, 0, 24*60);
         const hol = !!el.qa_holiday.checked;
+        const applyOt = !!el.qa_applyOt.checked;
 
-        addRow(dISO, start, end, brk, hol, {useGlobal:true});
+        addRow(dISO, start, end, brk, hol, applyOt, {useGlobal:true});
 
-        // Clear times for fast next entry (date stays today)
-        el.qa_start.value = ""; el.qa_end.value = "";
+        const nextDate = addDays(dateStr, 1);
+        if (nextDate) {
+            applyQuickAddDate(ymd(nextDate), true);
+        } else {
+            setAutoDate();
+        }
     }
 
     // ===== Events
@@ -498,6 +672,13 @@
             setAutoDate();
         }
     });
+    el.qa_date.addEventListener("change", ()=>{
+        const value = el.qa_date.value;
+        autoTickHoliday(value);
+        if (!el.qa_start.value && !el.qa_end.value) {
+            prefillQuickAddForDate(value);
+        }
+    });
     el.qa_form.addEventListener("submit", submitQuickAdd);
 
     // export
@@ -505,6 +686,9 @@
 
     // ===== Boot
     (function init(){
+        entries = normalizeEntries(entries);
+        saveEntries();
+        el.qa_applyOt.checked = true;
         setAutoDate();
         prefillFromTemplateForToday();
         render();
