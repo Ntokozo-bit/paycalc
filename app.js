@@ -29,6 +29,9 @@
         cycleProgressBar: document.getElementById("cycleProgressBar"),
 
         calendarTodayBtn: document.getElementById("calendarTodayBtn"),
+        prevCycleBtn: document.getElementById("prevCycleBtn"),
+        nextCycleBtn: document.getElementById("nextCycleBtn"),
+        calendarRangeLabel: document.getElementById("calendarRangeLabel"),
         cycleCalendar: document.getElementById("cycleCalendar"),
         selectedDayPanel: document.getElementById("selectedDayPanel"),
         entryCount: document.getElementById("entryCount"),
@@ -112,6 +115,7 @@
     let entries = loadEntries();
     let history = loadHistory();
     let selectedDate = null;
+    let viewedCycleAnchor = startOfToday();
 
     const PUBLIC_HOLIDAY_CACHE = new Map();
     const FIXED_PUBLIC_HOLIDAYS = [
@@ -222,7 +226,12 @@
     }
 
     function cellMoney(n) {
-        return `${settings.currency || "R"} ${fmtCellMoney(n)}`;
+        const value = Number.isFinite(+n) ? +n : 0;
+        const symbol = settings.currency || "R";
+        const abs = Math.abs(value);
+        if (abs >= 1000000) return `${symbol}${(value / 1000000).toFixed(1)}m`;
+        if (abs >= 1000) return `${symbol}${Math.round(value / 1000)}k`;
+        return `${symbol}${fmtCellMoney(Math.round(value))}`;
     }
 
     function formatDate(value, options) {
@@ -512,8 +521,49 @@
         return getCycleRange(startOfToday(), settings.cycleStartDay);
     }
 
+    function getViewedCycleRange() {
+        return getCycleRange(viewedCycleAnchor, settings.cycleStartDay);
+    }
+
     function cycleKey(range) {
         return `${ymd(range.start)}_${ymd(range.end)}`;
+    }
+
+    function isCurrentCycleRange(range) {
+        return cycleKey(range) === cycleKey(getCurrentCycleRange());
+    }
+
+    function findHistoryCycle(range) {
+        const key = cycleKey(range);
+        return history.find(cycle => cycle.key === key);
+    }
+
+    function rowsForViewedCycle(range) {
+        const archived = findHistoryCycle(range);
+        if (archived) {
+            return {
+                rows: archived.entries || [],
+                archived: true
+            };
+        }
+        return {
+            rows: entriesForRange(entries, range),
+            archived: false
+        };
+    }
+
+    function moveViewedCycle(direction) {
+        const range = getViewedCycleRange();
+        viewedCycleAnchor = direction < 0 ? addDays(range.start, -1) : addDays(range.end, 1);
+        const nextRange = getViewedCycleRange();
+        selectedDate = isCurrentCycleRange(nextRange) ? ymd(startOfToday()) : ymd(nextRange.start);
+        render();
+    }
+
+    function showCurrentCycle() {
+        viewedCycleAnchor = startOfToday();
+        selectedDate = ymd(startOfToday());
+        render();
     }
 
     function isInRange(value, range) {
@@ -965,14 +1015,13 @@
         appendDetailRow(parent, "Pay", money(calc.amount));
     }
 
-    function renderSelectedDay() {
-        const range = getCurrentCycleRange();
+    function renderSelectedDay(range, rows, editable) {
         if (!selectedDate || !isInRange(selectedDate, range)) {
             const today = ymd(startOfToday());
-            selectedDate = isInRange(today, range) ? today : ymd(range.start);
+            selectedDate = isInRange(today, range) && isCurrentCycleRange(range) ? today : ymd(range.start);
         }
 
-        const summary = summarizeDate(selectedDate, entries);
+        const summary = summarizeDate(selectedDate, rows);
         el.selectedDayPanel.textContent = "";
 
         const top = make("div", "selected-day-top");
@@ -1004,33 +1053,34 @@
         }
         el.selectedDayPanel.appendChild(details);
 
-        const actions = make("div", "selected-actions");
-        const primary = make("button", summary.rows.length ? "btn-primary" : "btn-primary", summary.rows.length ? "Edit Day" : "Add Work");
-        primary.type = "button";
-        primary.addEventListener("click", () => {
-            if (summary.rows.length) openEdit(summary.rows[0].id);
-            else openNewEntry(selectedDate);
-        });
-        actions.appendChild(primary);
+        if (editable) {
+            const actions = make("div", "selected-actions");
+            const primary = make("button", "btn-primary", summary.rows.length ? "Edit Day" : "Add Work");
+            primary.type = "button";
+            primary.addEventListener("click", () => {
+                if (summary.rows.length) openEdit(summary.rows[0].id);
+                else openNewEntry(selectedDate);
+            });
+            actions.appendChild(primary);
 
-        if (summary.rows.length) {
-            const addAnother = make("button", "btn-ghost", "Add Another");
-            addAnother.type = "button";
-            addAnother.addEventListener("click", () => openNewEntry(selectedDate));
-            actions.appendChild(addAnother);
+            el.selectedDayPanel.appendChild(actions);
+        } else {
+            el.selectedDayPanel.appendChild(make("p", "helper", "This is an archived cycle. It is shown for review and CSV export."));
         }
-        el.selectedDayPanel.appendChild(actions);
     }
 
     function handleCalendarSelect(dateStr, summary) {
         selectedDate = dateStr;
-        renderCalendar(el.cycleCalendar, getCurrentCycleRange(), entries, selectedDate, handleCalendarSelect);
-        renderSelectedDay();
-        if (!summary.saved) openNewEntry(dateStr);
+        const range = getViewedCycleRange();
+        const viewed = rowsForViewedCycle(range);
+        renderCalendar(el.cycleCalendar, range, viewed.rows, selectedDate, handleCalendarSelect);
+        renderSelectedDay(range, viewed.rows, !viewed.archived);
+        if (!summary.saved && !viewed.archived) openNewEntry(dateStr);
     }
 
     function renderDashboard() {
         const currentRange = getCurrentCycleRange();
+        const viewedRange = getViewedCycleRange();
         const monthRange = getMonthRange(startOfToday());
         const monthStats = summarizeRange(allEntries(), monthRange);
         const cycleStats = summarizeRange(entries, currentRange);
@@ -1050,6 +1100,11 @@
         el.cycleAverage.textContent = money(cycleStats.average);
         el.cycleProgressText.textContent = `${progress}% complete`;
         el.cycleProgressBar.style.width = `${progress}%`;
+
+        const viewedCurrent = isCurrentCycleRange(viewedRange);
+        const archived = findHistoryCycle(viewedRange);
+        const viewedType = viewedCurrent ? "Current cycle" : (archived ? "Archived cycle" : "Other cycle");
+        el.calendarRangeLabel.textContent = `${viewedType}: ${formatRange(viewedRange.start, viewedRange.end)}${viewedCurrent ? ". Tap any date to add or inspect a day." : ". Older or future cycles are dimmed so the active cycle stays clear."}`;
     }
 
     function renderEntries() {
@@ -1182,14 +1237,16 @@
 
     function render() {
         archiveCompletedCycles();
-        const range = getCurrentCycleRange();
+        const range = getViewedCycleRange();
+        const viewed = rowsForViewedCycle(range);
         if (!selectedDate || !isInRange(selectedDate, range)) {
             const today = ymd(startOfToday());
-            selectedDate = isInRange(today, range) ? today : ymd(range.start);
+            selectedDate = isInRange(today, range) && isCurrentCycleRange(range) ? today : ymd(range.start);
         }
         renderDashboard();
-        renderCalendar(el.cycleCalendar, range, entries, selectedDate, handleCalendarSelect);
-        renderSelectedDay();
+        el.cycleCalendar.classList.toggle("is-muted-cycle", !isCurrentCycleRange(range));
+        renderCalendar(el.cycleCalendar, range, viewed.rows, selectedDate, handleCalendarSelect);
+        renderSelectedDay(range, viewed.rows, !viewed.archived);
         renderEntries();
         renderHistory();
     }
@@ -1283,10 +1340,9 @@
     });
     el.qa_form.addEventListener("submit", submitQuickAdd);
     el.fabExport.addEventListener("click", exportCsv);
-    el.calendarTodayBtn.addEventListener("click", () => {
-        selectedDate = ymd(startOfToday());
-        render();
-    });
+    el.prevCycleBtn.addEventListener("click", () => moveViewedCycle(-1));
+    el.nextCycleBtn.addEventListener("click", () => moveViewedCycle(1));
+    el.calendarTodayBtn.addEventListener("click", showCurrentCycle);
 
     (function init() {
         entries = normalizeEntries(entries);

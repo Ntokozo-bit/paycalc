@@ -39,7 +39,7 @@
     </header>
 
     <section class="totals-bar" id="totalsBar">
-        <div><span class="k">Month</span><strong id="monthTotal">R 0.00</strong></div>
+        <div><span class="k">This Month</span><strong id="monthTotal">R 0.00</strong></div>
         <div><span class="k" id="cycleWindow">Cycle</span><strong id="cycleTotal">R 0.00</strong></div>
     </section>
 
@@ -74,9 +74,13 @@
             <div class="section-head">
                 <div>
                     <h2>Cycle Calendar</h2>
-                    <p>Tap any date to add work, update hours, or mark a holiday.</p>
+                    <p id="calendarRangeLabel">Tap any date to add work, update hours, or mark a holiday.</p>
                 </div>
-                <button class="btn-secondary compact" type="button" id="calendarTodayBtn">Today</button>
+                <div class="calendar-nav" aria-label="Cycle calendar navigation">
+                    <button class="btn-secondary compact" type="button" id="prevCycleBtn">Prev</button>
+                    <button class="btn-secondary compact" type="button" id="calendarTodayBtn">Current</button>
+                    <button class="btn-secondary compact" type="button" id="nextCycleBtn">Next</button>
+                </div>
             </div>
 
             <div class="legend" aria-label="Calendar colors">
