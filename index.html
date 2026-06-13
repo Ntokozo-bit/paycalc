@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>PayCalc — Mobile</title>
+    <title>WorkPay Calculator</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="styles.css" />
 </head>
@@ -15,20 +15,21 @@
                 <defs>
                     <linearGradient id="g1" x1="0" x2="1">
                         <stop offset="0" stop-color="#4da3ff"/>
-                        <stop offset="1" stop-color="#60d394"/>
+                        <stop offset="1" stop-color="#61d394"/>
                     </linearGradient>
                 </defs>
                 <path fill="url(#g1)" d="M44 11.3c0 2.7-4.16 5.1-10.31 6.34C39.84 18.9 44 21.26 44 24s-4.16 5.1-10.31 6.36C39.84 31.6 44 33.99 44 36.73 44 40.74 35.05 44 24 44S4 40.74 4 36.73c0-2.74 4.16-5.13 10.31-6.37C8.16 29.1 4 26.74 4 24s4.16-5.1 10.31-6.36C8.16 16.4 4 14.01 4 11.27 4 7.26 12.95 4 24 4s20 3.26 20 7.27Z"/>
             </svg>
-            <h1>PayCalc</h1>
+            <div>
+                <h1>WorkPay</h1>
+                <span class="brand-sub">Cycle calculator</span>
+            </div>
         </div>
 
         <div class="head-actions">
-            <!-- Help (? tip) -->
-            <button class="icon-btn" id="openHelpBtn" aria-label="Help / How to use">
+            <button class="icon-btn" id="openHelpBtn" aria-label="Help">
                 <svg class="i" viewBox="0 0 24 24"><path fill="currentColor" d="M11 18h2v-2h-2v2m1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8m-1-5h2c0-3 3-3.25 3-5a4 4 0 1 0-8 0h2a2 2 0 1 1 4 0c0 1.5-3 1.75-3 5Z"/></svg>
             </button>
-            <!-- Settings -->
             <button class="icon-btn" id="openSettingsBtn" aria-label="Open settings">
                 <svg class="i" viewBox="0 0 24 24" aria-hidden="true">
                     <path fill="currentColor" d="M12 8a2 2 0 1 0 .001 4.001A2 2 0 0 0 12 8m8.94 2.34-1.66-.96.02-.2a6.77 6.77 0 0 0-.49-1.16l.96-1.67-1.42-1.42-1.67.96c-.37-.22-.76-.39-1.16-.49l-.2-.02-.96-1.66h-2l-.96 1.66-.2.02c-.4.1-.79.27-1.16.49l-1.67-.96-1.41 1.42.96 1.67c-.22.37-.39.76-.49 1.16l-.02.2-1.66.96v2l1.66.96.02.2c.1.4.27.79.49 1.16l-.96 1.67 1.41 1.41 1.67-.96c.37.22.76.39 1.16.49l.2.02.96 1.66h2l.96-1.66.2-.02c.4-.1.79-.27 1.16-.49l1.67.96 1.42-1.41-.96-1.67c.22-.37.39-.76.49-1.16l.02-.2 1.66-.96v-2Z"/>
@@ -37,19 +38,72 @@
         </div>
     </header>
 
-    <!-- Totals bar (visible/month + cycle) -->
     <section class="totals-bar" id="totalsBar">
-        <div><span class="k">Month:</span> <strong id="monthTotal">R 0.00</strong></div>
-        <div><span class="k">Cycle 21→20:</span> <strong id="cycleTotal">R 0.00</strong></div>
+        <div><span class="k">Month</span><strong id="monthTotal">R 0.00</strong></div>
+        <div><span class="k" id="cycleWindow">Cycle</span><strong id="cycleTotal">R 0.00</strong></div>
     </section>
 
     <main class="m-main">
-        <!-- Quick Add (auto date; adjustable times/break) -->
-        <section class="card quick-add">
+        <section class="hero-panel">
+            <div class="cycle-copy">
+                <span class="eyebrow">Current pay cycle</span>
+                <h2 id="cycleTitle">Loading cycle</h2>
+                <p id="cycleSubtitle">Tap a date to add or edit a work day.</p>
+            </div>
+            <div class="metric-grid" aria-label="Cycle summary">
+                <div class="metric">
+                    <span class="metric-label">Worked</span>
+                    <strong id="cycleWorkDays">0 days</strong>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Hours</span>
+                    <strong id="cycleHours">0.00h</strong>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Average</span>
+                    <strong id="cycleAverage">R 0.00</strong>
+                </div>
+            </div>
+            <div class="cycle-progress" aria-label="Cycle progress">
+                <span id="cycleProgressText">0% complete</span>
+                <div class="progress-track"><span id="cycleProgressBar"></span></div>
+            </div>
+        </section>
+
+        <section class="panel calendar-panel">
+            <div class="section-head">
+                <div>
+                    <h2>Cycle Calendar</h2>
+                    <p>Tap any date to add work, update hours, or mark a holiday.</p>
+                </div>
+                <button class="btn-secondary compact" type="button" id="calendarTodayBtn">Today</button>
+            </div>
+
+            <div class="legend" aria-label="Calendar colors">
+                <span><i class="dot worked"></i>Worked</span>
+                <span><i class="dot off"></i>Not worked</span>
+                <span><i class="dot sunday"></i>Sunday</span>
+                <span><i class="dot holiday"></i>Holiday</span>
+            </div>
+
+            <div class="calendar-weekdays" aria-hidden="true">
+                <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+            </div>
+            <div id="cycleCalendar" class="calendar-grid"></div>
+            <article id="selectedDayPanel" class="selected-day"></article>
+        </section>
+
+        <section class="panel quick-add">
+            <div class="section-head">
+                <div>
+                    <h2>Fast Entry</h2>
+                    <p>Use this when adding several days in a row.</p>
+                </div>
+            </div>
             <form id="quickAddForm" autocomplete="off" novalidate>
-                <div class="row">
+                <div class="row quick-date-row">
                     <label class="control">
-                        <span class="lab">Date (auto)</span>
+                        <span class="lab">Date</span>
                         <input type="date" id="qa_date" aria-label="Date" disabled />
                     </label>
                     <button class="btn-ghost sm" type="button" id="qa_editDate">Change</button>
@@ -74,28 +128,42 @@
                         <input type="checkbox" id="qa_holiday" />
                     </label>
                 </div>
-                <label class="control chk">
-                    <span class="lab">Apply Overtime Automatically (normal days only)</span>
+                <label class="control chk full">
+                    <span class="lab">Apply overtime on normal days</span>
                     <input type="checkbox" id="qa_applyOt" checked />
                 </label>
-                <p class="helper">Set when overtime starts in Settings. Sundays and holidays double all worked hours instead of adding overtime on top.</p>
                 <button class="btn-primary" id="qa_addBtn" type="submit">
                     <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11 11V6h2v5h5v2h-5v5h-2v-5H6v-2z"/></svg>
-                    Add Today
+                    Add Day
                 </button>
             </form>
         </section>
 
-        <!-- Entries list (cards) -->
-        <section class="entry-list" id="entryList"></section>
+        <section class="entries-section">
+            <div class="section-head">
+                <div>
+                    <h2>Current Cycle Days</h2>
+                    <p id="entryCount">No days saved yet.</p>
+                </div>
+            </div>
+            <div class="entry-list" id="entryList"></div>
+        </section>
 
-        <!-- Floating action becomes: Download CSV -->
+        <section class="panel history-panel">
+            <div class="section-head">
+                <div>
+                    <h2>History</h2>
+                    <p>Finished pay cycles move here automatically when a new cycle starts.</p>
+                </div>
+            </div>
+            <div id="historyList" class="history-list"></div>
+        </section>
+
         <button id="fabExport" class="fab" aria-label="Download CSV">
             <svg class="i" viewBox="0 0 24 24"><path fill="currentColor" d="M5 20h14v-2H5m14-9h-4V3H9v6H5l7 7 7-7Z"/></svg>
         </button>
     </main>
 
-    <!-- Settings Sheet -->
     <aside id="settingsSheet" class="sheet" aria-hidden="true" tabindex="-1">
         <div class="sheet-head">
             <h2>Settings</h2>
@@ -108,7 +176,7 @@
             <fieldset class="group">
                 <legend>Rates & Overtime</legend>
                 <label class="control">
-                    <span class="lab">Hourly Rate (R/hour)</span>
+                    <span class="lab">Hourly Rate</span>
                     <input type="number" id="s_hourly" min="0" step="0.01" required />
                 </label>
                 <div class="row two">
@@ -131,7 +199,7 @@
                         <input type="number" id="s_holMult" min="1" step="0.1" value="2" />
                     </label>
                 </div>
-                <p class="helper">Sundays and holidays use the double-pay multiplier for all worked hours. Overtime is only used on normal days.</p>
+                <p class="helper">Sundays and holidays use their multiplier for all worked hours. Overtime is only used on normal days.</p>
             </fieldset>
 
             <fieldset class="group">
@@ -143,7 +211,7 @@
                     </label>
                     <label class="control">
                         <span class="lab">Currency Symbol</span>
-                        <input type="text" id="s_currency" maxlength="4" placeholder="R / $ / €" />
+                        <input type="text" id="s_currency" maxlength="4" placeholder="R / $ / GBP" />
                     </label>
                 </div>
                 <label class="control">
@@ -153,8 +221,8 @@
             </fieldset>
 
             <fieldset class="group">
-                <legend>Week Template (auto-fill)</legend>
-                <p class="helper">Leave start/end empty to mark day off.</p>
+                <legend>Week Template</legend>
+                <p class="helper">Leave start and end empty for days you usually do not work.</p>
                 <div class="week">
                     <label class="control"><span class="lab">Sun Start</span><input type="time" id="w0_start" value="08:00" /></label>
                     <label class="control"><span class="lab">Sun End</span><input type="time" id="w0_end" value="16:00" /></label>
@@ -183,10 +251,9 @@
         </form>
     </aside>
 
-    <!-- EDIT SHEET (full screen) -->
     <aside id="editSheet" class="sheet" aria-hidden="true" tabindex="-1">
         <div class="sheet-head">
-            <h2>Edit Day</h2>
+            <h2 id="editSheetTitle">Edit Day</h2>
             <button id="closeEditBtn" class="icon-btn" aria-label="Close edit">
                 <svg class="i" viewBox="0 0 24 24"><path fill="currentColor" d="M18.3 5.71 12 12l6.3 6.29-1.42 1.42L10.59 13.4 4.3 19.71 2.89 18.3 9.17 12 2.89 5.71 4.3 4.29 10.6 10.6l6.29-6.3z"/></svg>
             </button>
@@ -194,7 +261,7 @@
         <form id="editForm" class="sheet-body" autocomplete="off" novalidate>
             <input type="hidden" id="ed_id" />
             <fieldset class="group">
-                <legend>When</legend>
+                <legend>Day Details</legend>
                 <div class="row two">
                     <label class="control"><span class="lab">Date</span><input type="date" id="ed_date" required /></label>
                     <label class="control chk"><span class="lab">Holiday?</span><input type="checkbox" id="ed_holiday" /></label>
@@ -204,12 +271,12 @@
                     <label class="control"><span class="lab">End</span><input type="time" id="ed_end" /></label>
                 </div>
                 <label class="control"><span class="lab">Break (min)</span><input type="number" id="ed_break" min="0" step="5" /></label>
-                <label class="control chk"><span class="lab">Apply Overtime Automatically (normal days only)</span><input type="checkbox" id="ed_applyOt" checked /></label>
+                <label class="control chk full"><span class="lab">Apply overtime on normal days</span><input type="checkbox" id="ed_applyOt" checked /></label>
             </fieldset>
 
             <fieldset class="group">
-                <legend>Per-day Overrides</legend>
-                <label class="control chk">
+                <legend>Per-Day Overrides</legend>
+                <label class="control chk full">
                     <span class="lab">Use global settings</span>
                     <input type="checkbox" id="ed_useGlobal" checked />
                 </label>
@@ -223,18 +290,17 @@
                         <label class="control"><span class="lab">Sunday Multiplier</span><input type="number" id="ed_sunMul" min="1" step="0.1" /></label>
                         <label class="control"><span class="lab">Holiday Multiplier</span><input type="number" id="ed_holMul" min="1" step="0.1" /></label>
                     </div>
-                    <p class="helper">These overrides still follow the same rule: Sundays and holidays double all hours, without extra overtime on top.</p>
+                    <p class="helper">Overrides still follow the same rule: Sundays and holidays use special pay without extra overtime on top.</p>
                 </div>
             </fieldset>
 
             <div class="sheet-actions">
                 <button class="btn-secondary" type="button" id="ed_cancel">Cancel</button>
-                <button class="btn-primary" type="submit" id="ed_save">Save</button>
+                <button class="btn-primary" type="submit" id="ed_save">Save Day</button>
             </div>
         </form>
     </aside>
 
-    <!-- HELP SHEET -->
     <aside id="helpSheet" class="sheet" aria-hidden="true" tabindex="-1">
         <div class="sheet-head">
             <h2>How to use</h2>
@@ -245,20 +311,20 @@
         <div class="sheet-body">
             <div class="help">
                 <ol>
-                    <li><strong>Set your Settings</strong> (gear icon): hourly rate, when overtime starts, Sunday/holiday multipliers, default break, and your week template. Save.</li>
-                    <li><strong>Add Today</strong>: the blue button uses today’s date automatically. It fills start/end from your week template and default break. If you want, adjust hours/break before tapping.</li>
-                    <li><strong>Edit a day</strong>: tap <em>Edit</em> on a card. A full-screen editor opens. You can change time, break, holiday, turn overtime on or off for that day, and even override rates just for that day.</li>
-                    <li><strong>Totals</strong>: the bar under the header shows <em>this month</em> and the <em>21→20 cycle</em> totals. Both update live as you add/edit.</li>
-                    <li><strong>Download CSV</strong>: the round button at the bottom saves your data to a CSV file you can open in Excel/Sheets.</li>
-                    <li><strong>Auto-Fill Cycle</strong>: in Settings, press “Auto-Fill Current Cycle” to pre-create rows for each day based on your week template (easy mass editing).</li>
+                    <li><strong>Set your Settings</strong>: hourly rate, overtime, Sunday and holiday multipliers, pay-cycle start day, and your weekly template.</li>
+                    <li><strong>Use the calendar</strong>: green means worked, dark means not worked, blue marks Sundays, and yellow marks holidays. Tap any date to add or edit details.</li>
+                    <li><strong>Check the selected day</strong>: after tapping a date, the panel below the calendar shows hours, pay, and the exact rule used.</li>
+                    <li><strong>Review current days</strong>: every saved day in the active cycle appears below with time, break, hours, pay, and special-day labels.</li>
+                    <li><strong>History</strong>: when a pay cycle ends, old days move into History automatically and display as archived calendars.</li>
+                    <li><strong>Download CSV</strong>: the round download button exports current and historical entries for Excel or Sheets.</li>
                 </ol>
-                <p class="note">All data stays on your phone (local storage). Sundays and holidays double all worked hours, and overtime is only used on normal days.</p>
+                <p class="note">Data is stored in this browser only. Public holidays are detected locally for South Africa, and you can still mark any date as a holiday yourself.</p>
             </div>
         </div>
     </aside>
 
     <template id="entryCardTpl">
-        <article class="card entry">
+        <article class="entry">
             <div class="entry-top">
                 <div class="datecol">
                     <span class="dayname"></span>
@@ -273,13 +339,14 @@
                 <span class="chip start"></span>
                 <span class="chip end"></span>
                 <span class="chip break"></span>
+                <span class="chip hours"></span>
                 <span class="chip paydetail hide"></span>
                 <span class="chip sunday hide">Sunday</span>
                 <span class="chip holiday hide">Holiday</span>
             </div>
             <div class="entry-actions">
-                <button class="btn-ghost edit">Edit</button>
-                <button class="btn-danger remove">Remove</button>
+                <button class="btn-ghost edit" type="button">Edit</button>
+                <button class="btn-danger remove" type="button">Remove</button>
             </div>
         </article>
     </template>
