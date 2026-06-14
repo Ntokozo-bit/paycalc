@@ -893,7 +893,8 @@ input[type="checkbox"] {
 
     .calendar-nav .btn-secondary {
         width: 100%;
-        padding-inline: 6px;
+        padding-inline: 4px;
+        font-size: .82rem;
     }
 
     .month-jump {

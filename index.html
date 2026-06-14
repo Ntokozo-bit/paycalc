@@ -73,15 +73,15 @@
         <section class="panel calendar-panel">
             <div class="section-head">
                 <div>
-                    <h2>Month Calendar</h2>
+                    <h2>Cycle Calendar</h2>
                     <p id="calendarRangeLabel">Tap any date to add work, update hours, or mark a holiday.</p>
                 </div>
-                <div class="calendar-nav" aria-label="Month calendar navigation">
-                    <button class="btn-secondary compact" type="button" id="prevMonthBtn">Prev</button>
-                    <button class="btn-secondary compact" type="button" id="calendarTodayBtn">This Month</button>
-                    <button class="btn-secondary compact" type="button" id="nextMonthBtn">Next</button>
+                <div class="calendar-nav" aria-label="Pay cycle navigation">
+                    <button class="btn-secondary compact" type="button" id="prevMonthBtn">Prev Cycle</button>
+                    <button class="btn-secondary compact" type="button" id="calendarTodayBtn">This Cycle</button>
+                    <button class="btn-secondary compact" type="button" id="nextMonthBtn">Next Cycle</button>
                     <label class="month-jump">
-                        <span class="sr-only">Jump to month</span>
+                        <span class="sr-only">Jump to cycle starting month</span>
                         <input type="month" id="monthPicker" />
                     </label>
                 </div>
@@ -155,7 +155,7 @@
         <section class="entries-section">
             <div class="section-head">
                 <div>
-                    <h2 id="entryListTitle">This Month Days</h2>
+                    <h2 id="entryListTitle">Current Cycle Days</h2>
                     <p id="entryCount">No days saved yet.</p>
                 </div>
             </div>
@@ -319,7 +319,7 @@
                     <li><strong>Use the calendar</strong>: green means worked, purple means paid off, dark means not worked, red bottom markers show Sundays, and yellow marks holidays. Tap any date to add or edit details.</li>
                     <li><strong>Check the selected day</strong>: after tapping a date, the panel below the calendar shows hours, pay, and the exact rule used.</li>
                     <li><strong>Review current days</strong>: every saved day in the active cycle appears below with time, break, hours, pay, and special-day labels.</li>
-                    <li><strong>Past months</strong>: use Prev, Next, or the month picker to review older saved months. Older payroll dates are view-only, but their details and totals remain available.</li>
+                    <li><strong>Past cycles</strong>: use Prev Cycle, Next Cycle, or the month picker to review older saved pay cycles. Older payroll dates are view-only, but their details and totals remain available.</li>
                     <li><strong>Download CSV</strong>: the round download button exports current and historical entries for Excel or Sheets.</li>
                 </ol>
                 <p class="note">Data is stored in this browser only. Public holidays are detected locally for South Africa, and you can still mark any date as a holiday yourself.</p>
