@@ -67,6 +67,7 @@
         qa_end: document.getElementById("qa_end"),
         qa_break: document.getElementById("qa_break"),
         qa_holiday: document.getElementById("qa_holiday"),
+        qa_paidOff: document.getElementById("qa_paidOff"),
         qa_applyOt: document.getElementById("qa_applyOt"),
 
         list: document.getElementById("entryList"),
@@ -80,6 +81,7 @@
         ed_start: document.getElementById("ed_start"),
         ed_end: document.getElementById("ed_end"),
         ed_break: document.getElementById("ed_break"),
+        ed_paidOff: document.getElementById("ed_paidOff"),
         ed_useGlobal: document.getElementById("ed_useGlobal"),
         ed_overrides: document.getElementById("ed_overrides"),
         ed_hourly: document.getElementById("ed_hourly"),
@@ -385,6 +387,7 @@
             end: source.end || "",
             breakMin: clamp(source.breakMin ?? 0, 0, 24 * 60),
             isHoliday: !!source.isHoliday,
+            paidOff: !!source.paidOff,
             applyOvertime: usesOvertime(source),
             createdAt: Number.isFinite(+source.createdAt) ? +source.createdAt : date.getTime() + index,
             overrides
@@ -448,6 +451,7 @@
     function calcRow(row) {
         const sunday = isSunday(row.dateISO);
         const holiday = !!row.isHoliday || isAutoHoliday(row.dateISO);
+        const paidOff = !!row.paidOff;
         const rates = resolveRates(row);
         const hr = clamp(rates.hourly, 0, 1e9);
         const otTh = clamp(rates.otThreshold, 0, 24);
@@ -466,14 +470,18 @@
             totalMin = Math.max(0, end - sMin - brk);
         }
 
-        const hours = totalMin / 60;
+        const hours = paidOff ? 0 : totalMin / 60;
+        const paidHours = paidOff ? otTh : 0;
+        const paidOffPay = paidHours * hr;
         const specialType = holiday ? "holiday" : (sunday ? "sunday" : "");
         const specialMult = specialType === "holiday" ? holMul : (specialType === "sunday" ? sunMul : 1);
         let normalH = 0;
         let otH = 0;
         let specialH = 0;
 
-        if (specialType) {
+        if (paidOff) {
+            normalH = 0;
+        } else if (specialType) {
             specialH = hours;
         } else if (applyOvertime) {
             normalH = Math.min(hours, otTh);
@@ -488,12 +496,14 @@
 
         return {
             hours,
+            paidHours,
             normalH,
             otH,
             specialH,
-            amount: normalPay + otPay + specialPay,
+            amount: normalPay + otPay + specialPay + paidOffPay,
             multiplier: specialMult,
             specialType,
+            paidOff,
             usesOvertime: applyOvertime,
             otThreshold: otTh,
             otMultiplier: otMul
@@ -615,6 +625,7 @@
             hours,
             amount,
             worked: hours > 0,
+            paidOff: dayRows.some(row => row.paidOff),
             saved: dayRows.length > 0,
             sunday: isSunday(dateStr),
             holiday: isAutoHoliday(dateStr) || dayRows.some(row => row.isHoliday)
@@ -753,13 +764,14 @@
             end: values.end || "",
             breakMin: clamp(values.breakMin, 0, 24 * 60),
             isHoliday: !!values.isHoliday,
+            paidOff: !!values.paidOff,
             applyOvertime: values.applyOvertime !== false,
             createdAt: existing?.createdAt || nextCreatedAt(),
             overrides: values.overrides || { useGlobal: true }
         };
     }
 
-    function addRow(dateValue, start, end, breakMin, isHoliday, applyOvertime, overrides) {
+    function addRow(dateValue, start, end, breakMin, isHoliday, paidOff, applyOvertime, overrides) {
         const dateStr = ymd(dateValue);
         const existingIndex = entries.findIndex(row => ymd(row.dateISO) === dateStr);
         const existing = existingIndex >= 0 ? entries[existingIndex] : null;
@@ -769,6 +781,7 @@
             end,
             breakMin,
             isHoliday,
+            paidOff,
             applyOvertime,
             overrides
         }, existing);
@@ -808,6 +821,7 @@
                 end: template.end || "",
                 breakMin: settings.defaultBreak,
                 isHoliday: isAutoHoliday(day),
+                paidOff: false,
                 applyOvertime: true,
                 overrides: { useGlobal: true }
             }));
@@ -842,7 +856,9 @@
         el.ed_start.value = row.start || "";
         el.ed_end.value = row.end || "";
         el.ed_break.value = row.breakMin ?? settings.defaultBreak;
+        el.ed_paidOff.checked = !!row.paidOff;
         el.ed_applyOt.checked = usesOvertime(row);
+        syncPaidOffControls("edit");
         setEditOverrides(row);
         openSheet(el.editSheet);
         render();
@@ -858,7 +874,9 @@
         el.ed_start.value = template.start || "";
         el.ed_end.value = template.end || "";
         el.ed_break.value = clamp(settings.defaultBreak ?? 60, 0, 24 * 60);
+        el.ed_paidOff.checked = false;
         el.ed_applyOt.checked = true;
+        syncPaidOffControls("edit");
         setEditOverrides({ overrides: { useGlobal: true } });
         openSheet(el.editSheet);
     }
@@ -886,6 +904,7 @@
             end: el.ed_end.value || "",
             breakMin: el.ed_break.value,
             isHoliday: !!el.ed_holiday.checked,
+            paidOff: !!el.ed_paidOff.checked,
             applyOvertime: !!el.ed_applyOt.checked,
             overrides
         }, existing);
@@ -921,6 +940,16 @@
         if (prefillTimes) prefillQuickAddForDate(dateStr);
     }
 
+    function syncPaidOffControls(scope) {
+        const paidOff = scope === "edit" ? !!el.ed_paidOff.checked : !!el.qa_paidOff.checked;
+        const fields = scope === "edit"
+            ? [el.ed_start, el.ed_end, el.ed_break, el.ed_applyOt]
+            : [el.qa_start, el.qa_end, el.qa_break, el.qa_applyOt];
+        fields.forEach(field => {
+            field.disabled = paidOff;
+        });
+    }
+
     function setAutoDate() {
         applyQuickAddDate(ymd(startOfToday()), true);
     }
@@ -942,6 +971,7 @@
             end,
             el.qa_break.value || settings.defaultBreak || 0,
             !!el.qa_holiday.checked,
+            !!el.qa_paidOff.checked,
             !!el.qa_applyOt.checked,
             { useGlobal: true }
         );
@@ -950,6 +980,7 @@
     }
 
     function buildRateText(calc) {
+        if (calc.paidOff) return `Paid off base day (${calc.paidHours.toFixed(2)}h)`;
         if (calc.specialType === "holiday") return `Holiday x${calc.multiplier.toFixed(2)} on all hours`;
         if (calc.specialType === "sunday") return `Sunday x${calc.multiplier.toFixed(2)} on all hours`;
         if (calc.otH > 0) return `OT x${calc.otMultiplier.toFixed(2)} after ${calc.otThreshold.toFixed(2)}h`;
@@ -958,6 +989,7 @@
     }
 
     function buildPayDetailText(calc) {
+        if (calc.paidOff) return `Paid base ${calc.paidHours.toFixed(2)}h`;
         if (calc.hours <= 0) return "No hours";
         if (calc.specialH > 0) return `Special ${calc.specialH.toFixed(2)}h`;
         if (calc.otH > 0) return `Normal ${calc.normalH.toFixed(2)}h + OT ${calc.otH.toFixed(2)}h`;
@@ -980,7 +1012,8 @@
             btn.dataset.date = dateStr;
             btn.setAttribute("aria-label", `Open ${formatDate(dateStr, { weekday: "long", month: "long", day: "numeric" })}`);
             if (summary.worked) btn.classList.add("is-worked");
-            if (!summary.worked) btn.classList.add("is-off");
+            else if (summary.paidOff) btn.classList.add("is-paid-off");
+            else btn.classList.add("is-off");
             if (summary.sunday) btn.classList.add("is-sunday");
             if (summary.holiday) btn.classList.add("is-holiday");
             if (dateStr === today) btn.classList.add("is-today");
@@ -1007,6 +1040,14 @@
     function appendEntryDetails(parent, row, label) {
         const calc = calcRow(row);
         if (label) parent.appendChild(make("h3", "", label));
+        if (calc.paidOff) {
+            appendDetailRow(parent, "Type", "Paid off day");
+            appendDetailRow(parent, "Worked hours", "0.00h");
+            appendDetailRow(parent, "Paid base", `${calc.paidHours.toFixed(2)}h`);
+            appendDetailRow(parent, "Pay rule", buildRateText(calc));
+            appendDetailRow(parent, "Pay", money(calc.amount));
+            return;
+        }
         appendDetailRow(parent, "Time", `${row.start || "-"} to ${row.end || "-"}`);
         appendDetailRow(parent, "Break", `${row.breakMin ?? 0} min`);
         appendDetailRow(parent, "Hours", `${calc.hours.toFixed(2)}h`);
@@ -1034,6 +1075,7 @@
         })));
         const labels = [];
         if (summary.worked) labels.push("Worked");
+        else if (summary.paidOff) labels.push("Paid off");
         else labels.push("Not worked");
         if (summary.sunday) labels.push("Sunday");
         if (summary.holiday) labels.push("Holiday");
@@ -1139,10 +1181,18 @@
         });
         node.querySelector(".amount").textContent = money(calc.amount);
         node.querySelector(".rate").textContent = buildRateText(calc);
-        node.querySelector(".start").textContent = `Start ${row.start || "-"}`;
-        node.querySelector(".end").textContent = `End ${row.end || "-"}`;
-        node.querySelector(".break").textContent = `Break ${row.breakMin ?? 0}m`;
-        node.querySelector(".hours").textContent = `${calc.hours.toFixed(2)}h`;
+        if (calc.paidOff) {
+            node.querySelector(".start").textContent = "Paid off";
+            node.querySelector(".end").textContent = `Base ${calc.paidHours.toFixed(2)}h`;
+            node.querySelector(".break").textContent = "Worked 0.00h";
+            node.querySelector(".hours").textContent = money(calc.amount);
+            node.querySelector(".paid-off").classList.remove("hide");
+        } else {
+            node.querySelector(".start").textContent = `Start ${row.start || "-"}`;
+            node.querySelector(".end").textContent = `End ${row.end || "-"}`;
+            node.querySelector(".break").textContent = `Break ${row.breakMin ?? 0}m`;
+            node.querySelector(".hours").textContent = `${calc.hours.toFixed(2)}h`;
+        }
 
         const payDetail = node.querySelector(".paydetail");
         payDetail.textContent = buildPayDetailText(calc);
@@ -1260,10 +1310,12 @@
             "End",
             "Break(min)",
             "Holiday",
+            "PaidOff",
             "AutoOT",
             "NormalHours",
             "OTHours",
             "SpecialHours",
+            "PaidOffHours",
             "SpecialType",
             "DayPay"
         ];
@@ -1271,7 +1323,7 @@
             const d = toDate(row.dateISO);
             const range = getCycleRange(row.dateISO, settings.cycleStartDay);
             const calc = calcRow(row);
-            const autoOt = calc.specialType ? "N/A" : (usesOvertime(row) ? "Yes" : "No");
+            const autoOt = calc.specialType || calc.paidOff ? "N/A" : (usesOvertime(row) ? "Yes" : "No");
             return [
                 `"${formatRange(range.start, range.end)}"`,
                 ymd(row.dateISO),
@@ -1280,10 +1332,12 @@
                 row.end || "",
                 row.breakMin ?? 0,
                 (row.isHoliday || isAutoHoliday(row.dateISO)) ? "Yes" : "No",
+                row.paidOff ? "Yes" : "No",
                 autoOt,
                 calc.normalH.toFixed(2),
                 calc.otH.toFixed(2),
                 calc.specialH.toFixed(2),
+                calc.paidHours.toFixed(2),
                 calc.specialType || "normal",
                 calc.amount.toFixed(2)
             ].join(",");
@@ -1323,6 +1377,7 @@
     el.ed_cancel.addEventListener("click", () => closeSheet(el.editSheet));
     el.closeEditBtn.addEventListener("click", () => closeSheet(el.editSheet));
     el.editForm.addEventListener("submit", saveEdit);
+    el.ed_paidOff.addEventListener("change", () => syncPaidOffControls("edit"));
     el.ed_date.addEventListener("change", () => {
         if (!el.ed_id.value || isAutoHoliday(el.ed_date.value)) {
             el.ed_holiday.checked = isAutoHoliday(el.ed_date.value);
@@ -1338,6 +1393,7 @@
         autoTickHoliday(el.qa_date.value);
         prefillQuickAddForDate(el.qa_date.value);
     });
+    el.qa_paidOff.addEventListener("change", () => syncPaidOffControls("quick"));
     el.qa_form.addEventListener("submit", submitQuickAdd);
     el.fabExport.addEventListener("click", exportCsv);
     el.prevCycleBtn.addEventListener("click", () => moveViewedCycle(-1));
@@ -1353,6 +1409,7 @@
         saveHistory();
         el.qa_applyOt.checked = true;
         setAutoDate();
+        syncPaidOffControls("quick");
         render();
     })();
 })();

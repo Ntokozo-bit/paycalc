@@ -85,8 +85,9 @@
 
             <div class="legend" aria-label="Calendar colors">
                 <span><i class="dot worked"></i>Worked</span>
+                <span><i class="dot paid-off"></i>Paid off</span>
                 <span><i class="dot off"></i>Not worked</span>
-                <span><i class="dot sunday"></i>Sunday</span>
+                <span><i class="dot sunday"></i>Sunday marker</span>
                 <span><i class="dot holiday"></i>Holiday</span>
             </div>
 
@@ -132,6 +133,10 @@
                         <input type="checkbox" id="qa_holiday" />
                     </label>
                 </div>
+                <label class="control chk full">
+                    <span class="lab">Paid off day</span>
+                    <input type="checkbox" id="qa_paidOff" />
+                </label>
                 <label class="control chk full">
                     <span class="lab">Apply overtime on normal days</span>
                     <input type="checkbox" id="qa_applyOt" checked />
@@ -275,6 +280,7 @@
                     <label class="control"><span class="lab">End</span><input type="time" id="ed_end" /></label>
                 </div>
                 <label class="control"><span class="lab">Break (min)</span><input type="number" id="ed_break" min="0" step="5" /></label>
+                <label class="control chk full"><span class="lab">Paid off day</span><input type="checkbox" id="ed_paidOff" /></label>
                 <label class="control chk full"><span class="lab">Apply overtime on normal days</span><input type="checkbox" id="ed_applyOt" checked /></label>
             </fieldset>
 
@@ -316,7 +322,7 @@
             <div class="help">
                 <ol>
                     <li><strong>Set your Settings</strong>: hourly rate, overtime, Sunday and holiday multipliers, pay-cycle start day, and your weekly template.</li>
-                    <li><strong>Use the calendar</strong>: green means worked, dark means not worked, blue marks Sundays, and yellow marks holidays. Tap any date to add or edit details.</li>
+                    <li><strong>Use the calendar</strong>: green means worked, purple means paid off, dark means not worked, red bottom markers show Sundays, and yellow marks holidays. Tap any date to add or edit details.</li>
                     <li><strong>Check the selected day</strong>: after tapping a date, the panel below the calendar shows hours, pay, and the exact rule used.</li>
                     <li><strong>Review current days</strong>: every saved day in the active cycle appears below with time, break, hours, pay, and special-day labels.</li>
                     <li><strong>History</strong>: when a pay cycle ends, old days move into History automatically and display as archived calendars.</li>
@@ -345,6 +351,7 @@
                 <span class="chip break"></span>
                 <span class="chip hours"></span>
                 <span class="chip paydetail hide"></span>
+                <span class="chip paid-off hide">Paid off</span>
                 <span class="chip sunday hide">Sunday</span>
                 <span class="chip holiday hide">Holiday</span>
             </div>

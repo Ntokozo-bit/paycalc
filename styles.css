@@ -9,6 +9,7 @@
     --line: #37342d;
     --accent: #6ea8ff;
     --worked: #48c774;
+    --paid-off: #b18cff;
     --holiday: #ffd166;
     --sunday: #ff6b6b;
     --danger: #ff6b6b;
@@ -289,8 +290,15 @@ button {
 }
 
 .dot.worked { background: var(--worked); border-color: var(--worked); }
+.dot.paid-off { background: var(--paid-off); border-color: var(--paid-off); }
 .dot.off { background: #3b3830; border-color: #595346; }
-.dot.sunday { background: var(--sunday); border-color: var(--sunday); }
+.dot.sunday {
+    width: 16px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--sunday);
+    border-color: var(--sunday);
+}
 .dot.holiday { background: var(--holiday); border-color: var(--holiday); }
 
 .calendar-weekdays,
@@ -313,6 +321,8 @@ button {
 }
 
 .calendar-cell {
+    width: 100%;
+    max-width: 100%;
     min-width: 0;
     min-height: 68px;
     aspect-ratio: 1 / .9;
@@ -326,6 +336,8 @@ button {
     color: var(--ink);
     background: var(--surface-2);
     text-align: left;
+    appearance: none;
+    -webkit-appearance: none;
 }
 
 .calendar-cell.blank {
@@ -366,30 +378,42 @@ button {
     font-weight: 800;
 }
 
+.calendar-cell.is-paid-off {
+    color: #150925;
+    background: var(--paid-off);
+    border-color: rgba(255, 255, 255, .2);
+}
+
+.calendar-cell.is-paid-off .day-pay {
+    color: #24103d;
+    font-weight: 800;
+}
+
 .calendar-cell.is-holiday {
     box-shadow: inset 0 4px 0 var(--holiday);
 }
 
-.calendar-cell.is-holiday:not(.is-worked) {
+.calendar-cell.is-holiday:not(.is-worked):not(.is-paid-off) {
     color: #2a2104;
     background: var(--holiday);
     border-color: var(--holiday);
 }
 
-.calendar-cell.is-holiday:not(.is-worked) .day-pay {
+.calendar-cell.is-holiday:not(.is-worked):not(.is-paid-off) .day-pay {
     color: #4a3a08;
 }
 
 .calendar-cell.is-sunday {
-    color: #2b0505;
-    background: var(--sunday);
-    border-color: var(--sunday);
-    box-shadow: none;
+    border-bottom: 5px solid var(--sunday);
+    box-shadow: inset 0 -1px 0 rgba(0, 0, 0, .18);
 }
 
 .calendar-cell.is-sunday .day-pay {
-    color: #3b0808;
     font-weight: 800;
+}
+
+.calendar-cell.is-holiday.is-sunday {
+    box-shadow: inset 0 4px 0 var(--holiday), inset 0 -1px 0 rgba(0, 0, 0, .18);
 }
 
 .calendar-grid.is-muted-cycle .calendar-cell:not(.blank) {
@@ -664,9 +688,15 @@ input[type="checkbox"] {
 }
 
 .chip.sunday {
-    color: #dcebff;
-    border-color: rgba(123, 183, 255, .55);
-    background: rgba(123, 183, 255, .12);
+    color: #ffd7d7;
+    border-color: rgba(255, 107, 107, .6);
+    background: rgba(255, 107, 107, .13);
+}
+
+.chip.paid-off {
+    color: #eadfff;
+    border-color: rgba(177, 140, 255, .6);
+    background: rgba(177, 140, 255, .14);
 }
 
 .chip.holiday {
@@ -924,17 +954,20 @@ input[type="checkbox"] {
 
     .calendar-weekdays,
     .calendar-grid {
-        gap: 7px;
+        gap: 8px;
     }
 
     .calendar-cell {
-        min-height: 64px;
-        aspect-ratio: 1 / 1.08;
-        padding: 6px 4px;
+        aspect-ratio: auto;
+        min-height: 56px;
+        padding: 6px 3px;
+        justify-items: start;
     }
 
     .calendar-cell .day-pay {
-        font-size: .62rem;
+        min-height: 13px;
+        width: 100%;
+        font-size: .56rem;
         line-height: 1.1;
     }
 
