@@ -15,6 +15,7 @@
 
     const el = {
         openHelpBtn: document.getElementById("openHelpBtn"),
+        openHistoryBtn: document.getElementById("openHistoryBtn"),
         openSettingsBtn: document.getElementById("openSettingsBtn"),
 
         monthTotal: document.getElementById("monthTotal"),
@@ -35,6 +36,7 @@
         cycleCalendar: document.getElementById("cycleCalendar"),
         selectedDayPanel: document.getElementById("selectedDayPanel"),
         entryCount: document.getElementById("entryCount"),
+        historySection: document.getElementById("historySection"),
         historyList: document.getElementById("historyList"),
 
         helpSheet: document.getElementById("helpSheet"),
@@ -574,6 +576,15 @@
         viewedCycleAnchor = startOfToday();
         selectedDate = ymd(startOfToday());
         render();
+    }
+
+    function jumpToHistory() {
+        el.historySection.scrollIntoView({ behavior: "smooth", block: "start" });
+        el.historySection.focus({ preventScroll: true });
+        el.historySection.classList.add("is-attention");
+        window.setTimeout(() => {
+            el.historySection.classList.remove("is-attention");
+        }, 1200);
     }
 
     function isInRange(value, range) {
@@ -1356,6 +1367,7 @@
 
     el.openHelpBtn.addEventListener("click", () => openSheet(el.helpSheet));
     el.closeHelpBtn.addEventListener("click", () => closeSheet(el.helpSheet));
+    el.openHistoryBtn.addEventListener("click", jumpToHistory);
 
     el.openSettingsBtn.addEventListener("click", () => {
         syncSettingsToForm();
