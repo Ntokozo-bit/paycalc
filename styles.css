@@ -261,6 +261,27 @@ button {
     gap: 6px;
 }
 
+.month-jump {
+    display: block;
+}
+
+.month-jump input {
+    min-height: 38px;
+    padding: 6px 10px;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 .legend {
     display: flex;
     flex-wrap: wrap;
@@ -417,14 +438,6 @@ button {
     box-shadow: inset 0 4px 0 var(--holiday), inset 0 -1px 0 rgba(0, 0, 0, .18);
 }
 
-.calendar-grid.is-muted-cycle .calendar-cell:not(.blank) {
-    opacity: .55;
-}
-
-.calendar-grid.is-muted-cycle .calendar-cell.is-selected {
-    opacity: .9;
-}
-
 .calendar-cell.is-today {
     outline: 2px solid var(--ink);
     outline-offset: 2px;
@@ -543,6 +556,7 @@ button {
 input[type="time"],
 input[type="number"],
 input[type="date"],
+input[type="month"],
 input[type="text"] {
     width: 100%;
     min-height: 46px;
@@ -719,95 +733,6 @@ input[type="checkbox"] {
     flex: 1;
 }
 
-.history-list {
-    display: grid;
-    gap: 10px;
-}
-
-.history-panel {
-    scroll-margin-top: 122px;
-}
-
-.history-panel:focus {
-    outline: none;
-}
-
-.history-panel.is-attention {
-    animation: historyPulse 1.1s ease;
-}
-
-@keyframes historyPulse {
-    0% {
-        box-shadow: 0 0 0 0 rgba(177, 140, 255, .42), var(--shadow);
-    }
-    100% {
-        box-shadow: 0 0 0 14px rgba(177, 140, 255, 0), var(--shadow);
-    }
-}
-
-.history-cycle {
-    background: var(--surface-2);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    overflow: hidden;
-}
-
-.history-cycle summary {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 12px;
-    cursor: pointer;
-    list-style: none;
-}
-
-.history-cycle summary::-webkit-details-marker {
-    display: none;
-}
-
-.history-title {
-    display: grid;
-    gap: 2px;
-}
-
-.history-title strong {
-    font-size: .98rem;
-}
-
-.history-title span,
-.history-total span {
-    color: var(--muted);
-    font-size: .82rem;
-}
-
-.history-total {
-    display: grid;
-    gap: 2px;
-    text-align: right;
-}
-
-.history-total strong {
-    color: var(--worked);
-}
-
-.history-body {
-    padding: 0 12px 12px;
-    display: grid;
-    gap: 12px;
-}
-
-.history-day-panel {
-    padding: 10px;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-}
-
-.history-day-panel .muted {
-    color: var(--muted);
-}
-
 .empty-state {
     padding: 14px;
     color: var(--muted);
@@ -929,14 +854,8 @@ input[type="checkbox"] {
         grid-column: 1;
     }
 
-    .quick-add,
-    .history-panel {
+    .quick-add {
         grid-column: 2;
-    }
-
-    .history-panel {
-        position: sticky;
-        top: 132px;
     }
 }
 
@@ -977,6 +896,10 @@ input[type="checkbox"] {
         padding-inline: 6px;
     }
 
+    .month-jump {
+        grid-column: 1 / -1;
+    }
+
     .row.two,
     .quick-date-row,
     .sheet-actions {
@@ -1002,9 +925,6 @@ input[type="checkbox"] {
         line-height: 1.1;
     }
 
-    .history-cycle summary {
-        align-items: flex-start;
-    }
 }
 
 @media (max-width: 380px) {
