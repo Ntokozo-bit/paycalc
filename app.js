@@ -556,6 +556,11 @@
         return getCycleRange(new Date(d.getFullYear(), d.getMonth(), anchorDay), sd);
     }
 
+    function payMonthAnchorForDate(date) {
+        const range = getCycleRange(date, settings.cycleStartDay);
+        return new Date(range.end.getFullYear(), range.end.getMonth(), 1);
+    }
+
     function cycleKey(range) {
         return `${ymd(range.start)}_${ymd(range.end)}`;
     }
@@ -570,11 +575,11 @@
     }
 
     function getViewedMonthRange() {
-        return getMonthRange(viewedMonthAnchor);
+        return getCycleRangeForMonth(viewedMonthAnchor);
     }
 
     function getViewedCycleRange() {
-        return getCycleRangeForMonth(viewedMonthAnchor);
+        return getViewedMonthRange();
     }
 
     function isActiveRow(row) {
@@ -596,8 +601,7 @@
     }
 
     function setViewedMonth(date) {
-        const d = toDate(date) || startOfToday();
-        viewedMonthAnchor = new Date(d.getFullYear(), d.getMonth(), 1);
+        viewedMonthAnchor = payMonthAnchorForDate(date);
         const range = getViewedMonthRange();
         const today = ymd(startOfToday());
         selectedDate = isInRange(today, range) ? today : ymd(range.start);
@@ -1233,28 +1237,28 @@
         const monthStats = summarizeRows(viewedMonthRows);
         const cycleStats = summarizeRows(viewedCycleRows);
         const progress = cycleProgress(viewedCycleRange);
-        const viewedMonthName = monthName(viewedMonthRange.start);
-        const currentMonth = ymd(viewedMonthRange.start) === ymd(getMonthRange(startOfToday()).start);
+        const viewedMonthName = monthName(viewedMonthAnchor);
+        const currentMonth = cycleKey(viewedMonthRange) === cycleKey(currentRange);
         const currentCycle = cycleKey(viewedCycleRange) === cycleKey(currentRange);
         const paidOffDays = viewedMonthRows.filter(row => row.paidOff).length;
         const cycleLabel = `Cycle ${viewedCycleRange.start.getDate()}->${viewedCycleRange.end.getDate()}`;
 
-        el.monthTotalLabel.textContent = "Monthly Total Pay";
+        el.monthTotalLabel.textContent = "Pay Month Total";
         el.monthTotal.textContent = money(monthStats.amount);
         el.cycleTotal.textContent = money(cycleStats.amount);
         el.cycleWindow.textContent = cycleLabel;
         el.cycleTitle.textContent = formatRange(viewedCycleRange.start, viewedCycleRange.end);
         el.cycleSubtitle.textContent = currentCycle
             ? `${progress.remainingDays} day${progress.remainingDays === 1 ? "" : "s"} left in this cycle. Tap a calendar date to add or inspect a day.`
-            : `${viewedMonthName} uses this connected pay cycle for the cycle total.`;
+            : `${viewedMonthName} pay month runs ${formatRange(viewedMonthRange.start, viewedMonthRange.end)}.`;
         el.cycleWorkDays.textContent = `${cycleStats.workedDays} day${cycleStats.workedDays === 1 ? "" : "s"}`;
         el.cycleHours.textContent = `${cycleStats.hours.toFixed(2)}h`;
         el.cycleAverage.textContent = money(cycleStats.average);
         el.cycleProgressText.textContent = `${progress.percent}% complete`;
         el.cycleProgressBar.style.width = `${progress.percent}%`;
 
-        el.monthPicker.value = monthInputValue(viewedMonthRange.start);
-        el.calendarRangeLabel.textContent = `${currentMonth ? "This month" : viewedMonthName}: ${money(monthStats.amount)} total / ${viewedMonthRows.length} saved entr${viewedMonthRows.length === 1 ? "y" : "ies"} / ${monthStats.workedDays} worked / ${paidOffDays} paid off. ${cycleLabel}: ${money(cycleStats.amount)}.`;
+        el.monthPicker.value = monthInputValue(viewedMonthAnchor);
+        el.calendarRangeLabel.textContent = `${currentMonth ? "This pay month" : `${viewedMonthName} pay month`}: ${formatRange(viewedMonthRange.start, viewedMonthRange.end)} / ${money(monthStats.amount)} total / ${viewedMonthRows.length} saved entr${viewedMonthRows.length === 1 ? "y" : "ies"} / ${monthStats.workedDays} worked / ${paidOffDays} paid off.`;
     }
 
     function renderAllTimeSummary() {
@@ -1275,12 +1279,12 @@
         const rows = rowsForViewedMonth(range).sort(compareEntriesDesc);
         const stats = summarizeRows(rows);
         const paidOffDays = rows.filter(row => row.paidOff).length;
-        const name = monthName(range.start);
-        const currentMonth = ymd(range.start) === ymd(getMonthRange(startOfToday()).start);
+        const name = monthName(viewedMonthAnchor);
+        const currentMonth = cycleKey(range) === cycleKey(getCurrentCycleRange());
         const hasEditableDays = datesBetween(range.start, range.end).some(day => isEditableDate(day));
 
         el.list.textContent = "";
-        el.entryListTitle.textContent = `${currentMonth ? "Current Month" : name} Days`;
+        el.entryListTitle.textContent = `${currentMonth ? "Current Pay Month" : `${name} Pay Month`} Days`;
         el.entryCount.textContent = rows.length
             ? `${money(stats.amount)} total / ${rows.length} saved entr${rows.length === 1 ? "y" : "ies"} / ${stats.workedDays} worked / ${paidOffDays} paid off / ${stats.hours.toFixed(2)}h`
             : `No saved days for ${name}.`;
@@ -1464,6 +1468,7 @@
         el.qa_applyOt.checked = true;
         setAutoDate();
         syncPaidOffControls("quick");
+        setViewedMonth(startOfToday());
         render();
     })();
 })();
