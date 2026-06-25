@@ -39,14 +39,14 @@
     </header>
 
     <section class="totals-bar" id="totalsBar">
-        <div><span class="k">This Month</span><strong id="monthTotal">R 0.00</strong></div>
+        <div><span class="k" id="monthTotalLabel">Monthly Total Pay</span><strong id="monthTotal">R 0.00</strong></div>
         <div><span class="k" id="cycleWindow">Cycle</span><strong id="cycleTotal">R 0.00</strong></div>
     </section>
 
     <main class="m-main">
         <section class="hero-panel">
             <div class="cycle-copy">
-                <span class="eyebrow">Current pay cycle</span>
+                <span class="eyebrow">Selected pay cycle</span>
                 <h2 id="cycleTitle">Loading cycle</h2>
                 <p id="cycleSubtitle">Tap a date to add or edit a work day.</p>
             </div>
@@ -73,15 +73,15 @@
         <section class="panel calendar-panel">
             <div class="section-head">
                 <div>
-                    <h2>Cycle Calendar</h2>
+                    <h2>Month Calendar</h2>
                     <p id="calendarRangeLabel">Tap any date to add work, update hours, or mark a holiday.</p>
                 </div>
-                <div class="calendar-nav" aria-label="Pay cycle navigation">
-                    <button class="btn-secondary compact" type="button" id="prevMonthBtn">Prev Cycle</button>
-                    <button class="btn-secondary compact" type="button" id="calendarTodayBtn">This Cycle</button>
-                    <button class="btn-secondary compact" type="button" id="nextMonthBtn">Next Cycle</button>
+                <div class="calendar-nav" aria-label="Month navigation">
+                    <button class="btn-secondary compact" type="button" id="prevMonthBtn">Prev Month</button>
+                    <button class="btn-secondary compact" type="button" id="calendarTodayBtn">This Month</button>
+                    <button class="btn-secondary compact" type="button" id="nextMonthBtn">Next Month</button>
                     <label class="month-jump">
-                        <span class="sr-only">Jump to cycle starting month</span>
+                        <span class="sr-only">Jump to month</span>
                         <input type="month" id="monthPicker" />
                     </label>
                 </div>
@@ -100,6 +100,53 @@
             </div>
             <div id="cycleCalendar" class="calendar-grid"></div>
             <article id="selectedDayPanel" class="selected-day"></article>
+        </section>
+
+        <section class="panel summary-panel" aria-labelledby="allTimeTitle">
+            <div class="section-head">
+                <div>
+                    <h2 id="allTimeTitle">All Time Summary</h2>
+                    <p>Lifetime totals across current and historical saved entries.</p>
+                </div>
+            </div>
+            <div class="summary-grid">
+                <div class="metric">
+                    <span class="metric-label">Total Earned</span>
+                    <strong id="allTimeMoney">R 0.00</strong>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Hours Worked</span>
+                    <strong id="allTimeHours">0.00h</strong>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Normal Hours</span>
+                    <strong id="allTimeNormalHours">0.00h</strong>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Overtime Hours</span>
+                    <strong id="allTimeOvertimeHours">0.00h</strong>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Sunday/Holiday Hours</span>
+                    <strong id="allTimeSpecialHours">0.00h</strong>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Days Worked</span>
+                    <strong id="allTimeDays">0 days</strong>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Entries</span>
+                    <strong id="allTimeEntries">0</strong>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Average Day</span>
+                    <strong id="allTimeAverageDay">R 0.00</strong>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Average Month</span>
+                    <strong id="allTimeAverageMonth">R 0.00</strong>
+                </div>
+            </div>
         </section>
 
         <section class="panel quick-add">
@@ -155,7 +202,7 @@
         <section class="entries-section">
             <div class="section-head">
                 <div>
-                    <h2 id="entryListTitle">Current Cycle Days</h2>
+                    <h2 id="entryListTitle">Current Month Days</h2>
                     <p id="entryCount">No days saved yet.</p>
                 </div>
             </div>
@@ -316,10 +363,13 @@
             <div class="help">
                 <ol>
                     <li><strong>Set your Settings</strong>: hourly rate, overtime, Sunday and holiday multipliers, pay-cycle start day, and your weekly template.</li>
-                    <li><strong>Use the calendar</strong>: green means worked, purple means paid off, dark means not worked, red bottom markers show Sundays, and yellow marks holidays. Tap any date to add or edit details.</li>
+                    <li><strong>Use the month calendar</strong>: green means worked, purple means paid off, dark means not worked, red bottom markers show Sundays, and yellow marks holidays. Tap any date to add or edit details.</li>
                     <li><strong>Check the selected day</strong>: after tapping a date, the panel below the calendar shows hours, pay, and the exact rule used.</li>
-                    <li><strong>Review current days</strong>: every saved day in the active cycle appears below with time, break, hours, pay, and special-day labels.</li>
-                    <li><strong>Past cycles</strong>: use Prev Cycle, Next Cycle, or the month picker to review older saved pay cycles. Older payroll dates are view-only, but their details and totals remain available.</li>
+                    <li><strong>Selected month total</strong>: Monthly Total Pay only counts saved entries dated inside the month you are viewing, including normal pay, overtime, Sunday pay, holiday pay, breaks, paid-off days, and per-day overrides.</li>
+                    <li><strong>Selected cycle total</strong>: Cycle uses the pay cycle connected to the viewed month. With a start day of 21, viewing June shows 21 May to 20 June.</li>
+                    <li><strong>Review month days</strong>: every saved day in the viewed month appears below with time, break, hours, pay, and special-day labels.</li>
+                    <li><strong>All Time Summary</strong>: the summary section totals every saved entry across current and historical data. It is separate from the selected month and selected cycle totals.</li>
+                    <li><strong>Past months</strong>: use Prev Month, Next Month, or the month picker to review older saved months. Older payroll dates are view-only, but their details and totals remain available.</li>
                     <li><strong>Download CSV</strong>: the round download button exports current and historical entries for Excel or Sheets.</li>
                 </ol>
                 <p class="note">Data is stored in this browser only. Public holidays are detected locally for South Africa, and you can still mark any date as a holiday yourself.</p>

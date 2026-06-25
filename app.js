@@ -18,6 +18,7 @@
         openSettingsBtn: document.getElementById("openSettingsBtn"),
 
         monthTotal: document.getElementById("monthTotal"),
+        monthTotalLabel: document.getElementById("monthTotalLabel"),
         cycleTotal: document.getElementById("cycleTotal"),
         cycleWindow: document.getElementById("cycleWindow"),
         cycleTitle: document.getElementById("cycleTitle"),
@@ -75,6 +76,16 @@
         tpl: document.getElementById("entryCardTpl"),
         fabExport: document.getElementById("fabExport"),
 
+        allTimeMoney: document.getElementById("allTimeMoney"),
+        allTimeHours: document.getElementById("allTimeHours"),
+        allTimeNormalHours: document.getElementById("allTimeNormalHours"),
+        allTimeOvertimeHours: document.getElementById("allTimeOvertimeHours"),
+        allTimeSpecialHours: document.getElementById("allTimeSpecialHours"),
+        allTimeDays: document.getElementById("allTimeDays"),
+        allTimeEntries: document.getElementById("allTimeEntries"),
+        allTimeAverageDay: document.getElementById("allTimeAverageDay"),
+        allTimeAverageMonth: document.getElementById("allTimeAverageMonth"),
+
         editForm: document.getElementById("editForm"),
         ed_id: document.getElementById("ed_id"),
         ed_date: document.getElementById("ed_date"),
@@ -118,7 +129,7 @@
     let entries = loadEntries();
     let history = loadHistory();
     let selectedDate = null;
-    let viewedCycleAnchor = startOfToday();
+    let viewedMonthAnchor = startOfToday();
 
     const PUBLIC_HOLIDAY_CACHE = new Map();
     const FIXED_PUBLIC_HOLIDAYS = [
@@ -195,6 +206,12 @@
         const copy = new Date(d.getFullYear(), d.getMonth(), d.getDate());
         copy.setDate(copy.getDate() + days);
         return copy;
+    }
+
+    function addMonths(value, months) {
+        const d = toDate(value);
+        if (!d || !Number.isFinite(months)) return null;
+        return new Date(d.getFullYear(), d.getMonth() + months, 1);
     }
 
     function startOfToday() {
@@ -532,6 +549,13 @@
         return getCycleRange(startOfToday(), settings.cycleStartDay);
     }
 
+    function getCycleRangeForMonth(date) {
+        const d = toDate(date) || startOfToday();
+        const sd = clamp(settings.cycleStartDay, 1, 28);
+        const anchorDay = sd === 1 ? 1 : sd - 1;
+        return getCycleRange(new Date(d.getFullYear(), d.getMonth(), anchorDay), sd);
+    }
+
     function cycleKey(range) {
         return `${ymd(range.start)}_${ymd(range.end)}`;
     }
@@ -541,12 +565,16 @@
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     }
 
-    function cycleName(range) {
-        return formatRange(range.start, range.end);
+    function monthName(value) {
+        return formatDate(value, { month: "long", year: "numeric" });
+    }
+
+    function getViewedMonthRange() {
+        return getMonthRange(viewedMonthAnchor);
     }
 
     function getViewedCycleRange() {
-        return getCycleRange(viewedCycleAnchor, settings.cycleStartDay);
+        return getCycleRangeForMonth(viewedMonthAnchor);
     }
 
     function isActiveRow(row) {
@@ -563,32 +591,35 @@
         return entriesForRange(allEntries(), range);
     }
 
-    function setViewedCycle(date) {
+    function rowsForViewedMonth(range) {
+        return entriesForRange(allEntries(), range);
+    }
+
+    function setViewedMonth(date) {
         const d = toDate(date) || startOfToday();
-        viewedCycleAnchor = d;
-        const range = getViewedCycleRange();
+        viewedMonthAnchor = new Date(d.getFullYear(), d.getMonth(), 1);
+        const range = getViewedMonthRange();
         const today = ymd(startOfToday());
         selectedDate = isInRange(today, range) ? today : ymd(range.start);
     }
 
-    function moveViewedCycle(direction) {
-        const range = getViewedCycleRange();
-        viewedCycleAnchor = direction < 0 ? addDays(range.start, -1) : addDays(range.end, 1);
-        const nextRange = getViewedCycleRange();
+    function moveViewedMonth(direction) {
+        viewedMonthAnchor = addMonths(viewedMonthAnchor, direction) || startOfToday();
+        const nextRange = getViewedMonthRange();
         selectedDate = ymd(nextRange.start);
         render();
     }
 
-    function showCurrentCycle() {
-        setViewedCycle(startOfToday());
+    function showCurrentMonth() {
+        setViewedMonth(startOfToday());
         render();
     }
 
-    function jumpToCycleMonth(monthValue) {
+    function jumpToMonth(monthValue) {
         if (!/^\d{4}-\d{2}$/.test(monthValue || "")) return;
         const parts = monthValue.split("-").map(Number);
-        viewedCycleAnchor = new Date(parts[0], parts[1] - 1, clamp(settings.cycleStartDay, 1, 28));
-        const range = getViewedCycleRange();
+        viewedMonthAnchor = new Date(parts[0], parts[1] - 1, 1);
+        const range = getViewedMonthRange();
         selectedDate = ymd(range.start);
         render();
     }
@@ -649,29 +680,60 @@
         };
     }
 
-    function summarizeRange(rows, range) {
-        const inRange = entriesForRange(rows, range);
+    function summarizeRows(rows) {
+        const list = Array.isArray(rows) ? rows : [];
         const byDate = new Map();
+        const byMonth = new Set();
         let amount = 0;
         let hours = 0;
-        for (const row of inRange) {
+        let normalHours = 0;
+        let overtimeHours = 0;
+        let specialHours = 0;
+        let sundayHours = 0;
+        let holidayHours = 0;
+        let paidOffHours = 0;
+
+        for (const row of list) {
             const calc = calcRow(row);
             amount += calc.amount;
             hours += calc.hours;
+            normalHours += calc.normalH;
+            overtimeHours += calc.otH;
+            specialHours += calc.specialH;
+            paidOffHours += calc.paidHours;
+            if (calc.specialType === "sunday") sundayHours += calc.specialH;
+            if (calc.specialType === "holiday") holidayHours += calc.specialH;
             const key = ymd(row.dateISO);
+            if (!key) continue;
+            byMonth.add(key.slice(0, 7));
             const existing = byDate.get(key) || { hours: 0, amount: 0 };
             existing.hours += calc.hours;
             existing.amount += calc.amount;
             byDate.set(key, existing);
         }
         const workedDays = Array.from(byDate.values()).filter(day => day.hours > 0).length;
+        const activeMonths = byMonth.size;
         return {
-            rows: inRange,
+            rows: list,
+            entriesCount: list.length,
             amount,
             hours,
+            normalHours,
+            overtimeHours,
+            specialHours,
+            sundayHours,
+            holidayHours,
+            paidOffHours,
             workedDays,
-            average: workedDays ? amount / workedDays : 0
+            savedDays: byDate.size,
+            activeMonths,
+            average: workedDays ? amount / workedDays : 0,
+            monthAverage: activeMonths ? amount / activeMonths : 0
         };
+    }
+
+    function summarizeRange(rows, range) {
+        return summarizeRows(entriesForRange(rows, range));
     }
 
     function freezeRowForHistory(row) {
@@ -809,8 +871,8 @@
             entries.push(row);
         }
         saveEntries();
-        if (!isInRange(dateStr, getViewedCycleRange())) {
-            viewedCycleAnchor = toDate(dateStr);
+        if (!isInRange(dateStr, getViewedMonthRange())) {
+            setViewedMonth(dateStr);
         }
         selectedDate = dateStr;
         render();
@@ -936,8 +998,8 @@
         }
 
         selectedDate = dateStr;
-        if (!isInRange(dateStr, getViewedCycleRange())) {
-            viewedCycleAnchor = toDate(dateStr);
+        if (!isInRange(dateStr, getViewedMonthRange())) {
+            setViewedMonth(dateStr);
         }
         saveEntries();
         closeSheet(el.editSheet);
@@ -1137,60 +1199,94 @@
 
     function handleCalendarSelect(dateStr, summary) {
         selectedDate = dateStr;
-        const range = getViewedCycleRange();
-        const rows = rowsForViewedCycle(range);
+        const range = getViewedMonthRange();
+        const rows = rowsForViewedMonth(range);
         const editable = isEditableDate(dateStr) && summary.rows.every(row => isActiveRow(row));
         renderCalendar(el.cycleCalendar, range, rows, selectedDate, handleCalendarSelect);
         renderSelectedDay(range, rows);
         if (!summary.saved && editable) openNewEntry(dateStr);
     }
 
+    function cycleProgress(range) {
+        const days = datesBetween(range.start, range.end);
+        const today = startOfToday();
+        let elapsed = 0;
+        if (today > range.end) {
+            elapsed = days.length;
+        } else if (today >= range.start) {
+            const todayIndex = days.findIndex(day => ymd(day) === ymd(today));
+            elapsed = todayIndex < 0 ? 0 : todayIndex + 1;
+        }
+
+        return {
+            percent: days.length ? Math.max(0, Math.min(100, Math.round((elapsed / days.length) * 100))) : 0,
+            remainingDays: Math.max(0, days.length - elapsed)
+        };
+    }
+
     function renderDashboard() {
         const currentRange = getCurrentCycleRange();
-        const viewedRange = getViewedCycleRange();
-        const monthRange = getMonthRange(startOfToday());
-        const monthStats = summarizeRange(allEntries(), monthRange);
-        const cycleStats = summarizeRange(entries, currentRange);
-        const days = datesBetween(currentRange.start, currentRange.end);
-        const todayIndex = days.findIndex(day => ymd(day) === ymd(startOfToday()));
-        const elapsed = todayIndex < 0 ? days.length : todayIndex + 1;
-        const progress = Math.max(0, Math.min(100, Math.round((elapsed / days.length) * 100)));
-        const remainingDays = Math.max(0, days.length - elapsed);
+        const viewedMonthRange = getViewedMonthRange();
+        const viewedCycleRange = getViewedCycleRange();
+        const viewedMonthRows = rowsForViewedMonth(viewedMonthRange);
+        const viewedCycleRows = rowsForViewedCycle(viewedCycleRange);
+        const monthStats = summarizeRows(viewedMonthRows);
+        const cycleStats = summarizeRows(viewedCycleRows);
+        const progress = cycleProgress(viewedCycleRange);
+        const viewedMonthName = monthName(viewedMonthRange.start);
+        const currentMonth = ymd(viewedMonthRange.start) === ymd(getMonthRange(startOfToday()).start);
+        const currentCycle = cycleKey(viewedCycleRange) === cycleKey(currentRange);
+        const paidOffDays = viewedMonthRows.filter(row => row.paidOff).length;
+        const cycleLabel = `Cycle ${viewedCycleRange.start.getDate()}->${viewedCycleRange.end.getDate()}`;
 
+        el.monthTotalLabel.textContent = "Monthly Total Pay";
         el.monthTotal.textContent = money(monthStats.amount);
         el.cycleTotal.textContent = money(cycleStats.amount);
-        el.cycleWindow.textContent = `Cycle ${currentRange.start.getDate()}->${currentRange.end.getDate()}`;
-        el.cycleTitle.textContent = formatRange(currentRange.start, currentRange.end);
-        el.cycleSubtitle.textContent = `${remainingDays} day${remainingDays === 1 ? "" : "s"} left in this cycle. Tap a calendar date to add or inspect a day.`;
+        el.cycleWindow.textContent = cycleLabel;
+        el.cycleTitle.textContent = formatRange(viewedCycleRange.start, viewedCycleRange.end);
+        el.cycleSubtitle.textContent = currentCycle
+            ? `${progress.remainingDays} day${progress.remainingDays === 1 ? "" : "s"} left in this cycle. Tap a calendar date to add or inspect a day.`
+            : `${viewedMonthName} uses this connected pay cycle for the cycle total.`;
         el.cycleWorkDays.textContent = `${cycleStats.workedDays} day${cycleStats.workedDays === 1 ? "" : "s"}`;
         el.cycleHours.textContent = `${cycleStats.hours.toFixed(2)}h`;
         el.cycleAverage.textContent = money(cycleStats.average);
-        el.cycleProgressText.textContent = `${progress}% complete`;
-        el.cycleProgressBar.style.width = `${progress}%`;
+        el.cycleProgressText.textContent = `${progress.percent}% complete`;
+        el.cycleProgressBar.style.width = `${progress.percent}%`;
 
-        const viewedRows = rowsForViewedCycle(viewedRange);
-        const viewedStats = summarizeRange(viewedRows, viewedRange);
-        const paidOffDays = viewedRows.filter(row => row.paidOff).length;
-        const currentCycle = cycleKey(viewedRange) === cycleKey(currentRange);
-        el.monthPicker.value = monthInputValue(viewedRange.start);
-        el.calendarRangeLabel.textContent = `${currentCycle ? "This cycle" : cycleName(viewedRange)}: ${money(viewedStats.amount)} total / ${viewedRows.length} saved day${viewedRows.length === 1 ? "" : "s"} / ${viewedStats.workedDays} worked / ${paidOffDays} paid off.`;
+        el.monthPicker.value = monthInputValue(viewedMonthRange.start);
+        el.calendarRangeLabel.textContent = `${currentMonth ? "This month" : viewedMonthName}: ${money(monthStats.amount)} total / ${viewedMonthRows.length} saved entr${viewedMonthRows.length === 1 ? "y" : "ies"} / ${monthStats.workedDays} worked / ${paidOffDays} paid off. ${cycleLabel}: ${money(cycleStats.amount)}.`;
+    }
+
+    function renderAllTimeSummary() {
+        const stats = summarizeRows(allEntries());
+        el.allTimeMoney.textContent = money(stats.amount);
+        el.allTimeHours.textContent = `${stats.hours.toFixed(2)}h`;
+        el.allTimeNormalHours.textContent = `${stats.normalHours.toFixed(2)}h`;
+        el.allTimeOvertimeHours.textContent = `${stats.overtimeHours.toFixed(2)}h`;
+        el.allTimeSpecialHours.textContent = `${stats.specialHours.toFixed(2)}h`;
+        el.allTimeDays.textContent = `${stats.workedDays} day${stats.workedDays === 1 ? "" : "s"}`;
+        el.allTimeEntries.textContent = String(stats.entriesCount);
+        el.allTimeAverageDay.textContent = money(stats.average);
+        el.allTimeAverageMonth.textContent = money(stats.monthAverage);
     }
 
     function renderEntries() {
-        const range = getViewedCycleRange();
-        const rows = rowsForViewedCycle(range).sort(compareEntriesDesc);
-        const stats = summarizeRange(rows, range);
+        const range = getViewedMonthRange();
+        const rows = rowsForViewedMonth(range).sort(compareEntriesDesc);
+        const stats = summarizeRows(rows);
         const paidOffDays = rows.filter(row => row.paidOff).length;
-        const name = cycleName(range);
+        const name = monthName(range.start);
+        const currentMonth = ymd(range.start) === ymd(getMonthRange(startOfToday()).start);
+        const hasEditableDays = datesBetween(range.start, range.end).some(day => isEditableDate(day));
 
         el.list.textContent = "";
-        el.entryListTitle.textContent = `${cycleKey(range) === cycleKey(getCurrentCycleRange()) ? "Current Cycle" : name} Days`;
+        el.entryListTitle.textContent = `${currentMonth ? "Current Month" : name} Days`;
         el.entryCount.textContent = rows.length
-            ? `${money(stats.amount)} total / ${rows.length} saved day${rows.length === 1 ? "" : "s"} / ${stats.workedDays} worked / ${paidOffDays} paid off / ${stats.hours.toFixed(2)}h`
+            ? `${money(stats.amount)} total / ${rows.length} saved entr${rows.length === 1 ? "y" : "ies"} / ${stats.workedDays} worked / ${paidOffDays} paid off / ${stats.hours.toFixed(2)}h`
             : `No saved days for ${name}.`;
 
         if (!rows.length) {
-            el.list.appendChild(make("div", "empty-state", isEditableDate(ymd(range.start))
+            el.list.appendChild(make("div", "empty-state", hasEditableDays
                 ? "Tap a date on the calendar to add your first work day for this month."
                 : "No work was recorded for this older month."));
             return;
@@ -1245,13 +1341,14 @@
 
     function render() {
         archiveCompletedCycles();
-        const range = getViewedCycleRange();
-        const rows = rowsForViewedCycle(range);
+        const range = getViewedMonthRange();
+        const rows = rowsForViewedMonth(range);
         if (!selectedDate || !isInRange(selectedDate, range)) {
             const today = ymd(startOfToday());
             selectedDate = isInRange(today, range) ? today : ymd(range.start);
         }
         renderDashboard();
+        renderAllTimeSummary();
         renderCalendar(el.cycleCalendar, range, rows, selectedDate, handleCalendarSelect);
         renderSelectedDay(range, rows);
         renderEntries();
@@ -1352,10 +1449,10 @@
     el.qa_paidOff.addEventListener("change", () => syncPaidOffControls("quick"));
     el.qa_form.addEventListener("submit", submitQuickAdd);
     el.fabExport.addEventListener("click", exportCsv);
-    el.prevMonthBtn.addEventListener("click", () => moveViewedCycle(-1));
-    el.nextMonthBtn.addEventListener("click", () => moveViewedCycle(1));
-    el.calendarTodayBtn.addEventListener("click", showCurrentCycle);
-    el.monthPicker.addEventListener("change", () => jumpToCycleMonth(el.monthPicker.value));
+    el.prevMonthBtn.addEventListener("click", () => moveViewedMonth(-1));
+    el.nextMonthBtn.addEventListener("click", () => moveViewedMonth(1));
+    el.calendarTodayBtn.addEventListener("click", showCurrentMonth);
+    el.monthPicker.addEventListener("change", () => jumpToMonth(el.monthPicker.value));
 
     (function init() {
         entries = normalizeEntries(entries);

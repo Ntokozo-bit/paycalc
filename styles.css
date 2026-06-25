@@ -197,6 +197,12 @@ button {
     gap: 8px;
 }
 
+.summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
 .metric {
     display: grid;
     gap: 4px;
@@ -857,6 +863,10 @@ input[type="checkbox"] {
     .quick-add {
         grid-column: 2;
     }
+
+    .summary-panel {
+        grid-column: 2;
+    }
 }
 
 @media (max-width: 520px) {
@@ -878,6 +888,10 @@ input[type="checkbox"] {
     }
 
     .metric-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .summary-grid {
         grid-template-columns: 1fr;
     }
 
