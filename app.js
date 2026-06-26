@@ -528,6 +528,20 @@
         };
     }
 
+    function calcBasicRow(row) {
+        const calc = calcRow(row);
+        const rates = resolveRates(row);
+        const hourly = clamp(rates.hourly, 0, 1e9);
+        const basicHours = calc.paidOff
+            ? calc.paidHours
+            : Math.min(calc.hours, calc.otThreshold);
+
+        return {
+            hours: basicHours,
+            amount: basicHours * hourly
+        };
+    }
+
     function getMonthRange(date) {
         const d = toDate(date) || startOfToday();
         const start = new Date(d.getFullYear(), d.getMonth(), 1);
@@ -733,6 +747,25 @@
             activeMonths,
             average: workedDays ? amount / workedDays : 0,
             monthAverage: activeMonths ? amount / activeMonths : 0
+        };
+    }
+
+    function summarizeBasicRows(rows) {
+        const list = Array.isArray(rows) ? rows : [];
+        let amount = 0;
+        let hours = 0;
+
+        for (const row of list) {
+            const basic = calcBasicRow(row);
+            amount += basic.amount;
+            hours += basic.hours;
+        }
+
+        return {
+            rows: list,
+            entriesCount: list.length,
+            amount,
+            hours
         };
     }
 
@@ -1235,6 +1268,7 @@
         const viewedMonthRows = rowsForViewedMonth(viewedMonthRange);
         const viewedCycleRows = rowsForViewedCycle(viewedCycleRange);
         const monthStats = summarizeRows(viewedMonthRows);
+        const basicMonthStats = summarizeBasicRows(viewedMonthRows);
         const cycleStats = summarizeRows(viewedCycleRows);
         const progress = cycleProgress(viewedCycleRange);
         const viewedMonthName = monthName(viewedMonthAnchor);
@@ -1243,8 +1277,8 @@
         const paidOffDays = viewedMonthRows.filter(row => row.paidOff).length;
         const cycleLabel = `Cycle ${viewedCycleRange.start.getDate()}->${viewedCycleRange.end.getDate()}`;
 
-        el.monthTotalLabel.textContent = "Pay Month Total";
-        el.monthTotal.textContent = money(monthStats.amount);
+        el.monthTotalLabel.textContent = "Basic Salary";
+        el.monthTotal.textContent = money(basicMonthStats.amount);
         el.cycleTotal.textContent = money(cycleStats.amount);
         el.cycleWindow.textContent = cycleLabel;
         el.cycleTitle.textContent = formatRange(viewedCycleRange.start, viewedCycleRange.end);
@@ -1258,7 +1292,7 @@
         el.cycleProgressBar.style.width = `${progress.percent}%`;
 
         el.monthPicker.value = monthInputValue(viewedMonthAnchor);
-        el.calendarRangeLabel.textContent = `${currentMonth ? "This pay month" : `${viewedMonthName} pay month`}: ${formatRange(viewedMonthRange.start, viewedMonthRange.end)} / ${money(monthStats.amount)} total / ${viewedMonthRows.length} saved entr${viewedMonthRows.length === 1 ? "y" : "ies"} / ${monthStats.workedDays} worked / ${paidOffDays} paid off.`;
+        el.calendarRangeLabel.textContent = `${currentMonth ? "This pay month" : `${viewedMonthName} pay month`}: ${formatRange(viewedMonthRange.start, viewedMonthRange.end)} / ${money(basicMonthStats.amount)} basic salary / ${money(cycleStats.amount)} full cycle pay / ${viewedMonthRows.length} saved entr${viewedMonthRows.length === 1 ? "y" : "ies"} / ${monthStats.workedDays} worked / ${paidOffDays} paid off.`;
     }
 
     function renderAllTimeSummary() {
@@ -1286,7 +1320,7 @@
         el.list.textContent = "";
         el.entryListTitle.textContent = `${currentMonth ? "Current Pay Month" : `${name} Pay Month`} Days`;
         el.entryCount.textContent = rows.length
-            ? `${money(stats.amount)} total / ${rows.length} saved entr${rows.length === 1 ? "y" : "ies"} / ${stats.workedDays} worked / ${paidOffDays} paid off / ${stats.hours.toFixed(2)}h`
+            ? `${money(stats.amount)} full pay / ${rows.length} saved entr${rows.length === 1 ? "y" : "ies"} / ${stats.workedDays} worked / ${paidOffDays} paid off / ${stats.hours.toFixed(2)}h`
             : `No saved days for ${name}.`;
 
         if (!rows.length) {
