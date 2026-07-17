@@ -1,0 +1,226 @@
+name: Apply persistent break feature
+
+on:
+  push:
+    branches:
+      - feature/persistent-break-toggle
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/persistent-break-toggle
+      - name: Patch WorkPay files
+        shell: python
+        run: |
+          from pathlib import Path
+
+          index = Path("index.html")
+          html = index.read_text(encoding="utf-8")
+          old = '''                <label class="control">
+                    <span class="lab">Default Break (minutes)</span>
+                    <input type="number" id="s_defaultBreak" min="0" step="5" value="60" />
+                </label>'''
+          new = '''                <label class="control chk full">
+                    <span class="lab">Deduct lunch break by default</span>
+                    <input type="checkbox" id="s_deductBreak" checked />
+                </label>
+                <label class="control" id="defaultBreakControl">
+                    <span class="lab">Default Break (minutes)</span>
+                    <input type="number" id="s_defaultBreak" min="0" step="5" value="60" />
+                </label>
+                <p class="helper">Turn this off if you work straight through. New workdays will use 0 break minutes until you turn it on again. Existing saved days are not changed.</p>'''
+          if old not in html:
+              raise SystemExit("Settings break block not found")
+          html = html.replace(old, new, 1)
+
+          old = '''    <template id="entryCardTpl">'''
+          new = '''    <div id="featureNotice" class="feature-notice" role="dialog" aria-modal="true" aria-labelledby="featureNoticeTitle" hidden>
+        <div class="feature-notice-card">
+            <span class="eyebrow">New feature</span>
+            <h2 id="featureNoticeTitle">Lunch-break control</h2>
+            <p>Working without a fixed lunch break? You can now turn off <strong>Deduct lunch break by default</strong>. New workdays will use 0 break minutes until you turn it on again.</p>
+            <div class="feature-notice-actions">
+                <button class="btn-secondary" type="button" id="dismissFeatureNotice">Got it</button>
+                <button class="btn-primary" type="button" id="openBreakSettings">Open Settings</button>
+            </div>
+        </div>
+    </div>
+
+    <template id="entryCardTpl">'''
+          if old not in html:
+              raise SystemExit("Entry template marker not found")
+          html = html.replace(old, new, 1)
+          index.write_text(html, encoding="utf-8")
+
+          app = Path("app.js")
+          js = app.read_text(encoding="utf-8")
+          js = js.replace('''        HISTORY: "paycalc_history_v1"''', '''        HISTORY: "paycalc_history_v1",
+        BREAK_FEATURE_SEEN: "workpay_break_feature_seen_v1"''', 1)
+          js = js.replace('''        s_defaultBreak: document.getElementById("s_defaultBreak"),''', '''        s_defaultBreak: document.getElementById("s_defaultBreak"),
+        s_deductBreak: document.getElementById("s_deductBreak"),
+        defaultBreakControl: document.getElementById("defaultBreakControl"),''', 1)
+          js = js.replace('''        ed_save: document.getElementById("ed_save")''', '''        ed_save: document.getElementById("ed_save"),
+
+        featureNotice: document.getElementById("featureNotice"),
+        dismissFeatureNotice: document.getElementById("dismissFeatureNotice"),
+        openBreakSettings: document.getElementById("openBreakSettings")''', 1)
+          js = js.replace('''        defaultBreak: 60,
+        weekTemplate:''', '''        defaultBreak: 60,
+        deductBreakByDefault: true,
+        weekTemplate:''', 1)
+
+          marker = '''    function saveSettings() {
+        try {
+            localStorage.setItem(STORE.SETTINGS, JSON.stringify(settings));
+        } catch {}
+    }
+'''
+          addition = marker + '''
+    function defaultBreakForNewDay() {
+        return settings.deductBreakByDefault === false
+            ? 0
+            : clamp(settings.defaultBreak ?? 60, 0, 24 * 60);
+    }
+
+    function syncBreakSettingControls() {
+        const enabled = !!el.s_deductBreak.checked;
+        el.s_defaultBreak.disabled = !enabled;
+        if (el.defaultBreakControl) {
+            el.defaultBreakControl.classList.toggle("is-disabled", !enabled);
+        }
+    }
+
+    function featureNoticeSeen() {
+        try {
+            return localStorage.getItem(STORE.BREAK_FEATURE_SEEN) === "true";
+        } catch {
+            return false;
+        }
+    }
+
+    function markFeatureNoticeSeen() {
+        try {
+            localStorage.setItem(STORE.BREAK_FEATURE_SEEN, "true");
+        } catch {}
+    }
+
+    function closeFeatureNotice() {
+        markFeatureNoticeSeen();
+        if (el.featureNotice) el.featureNotice.hidden = true;
+    }
+
+    function showFeatureNoticeOnce() {
+        if (el.featureNotice && !featureNoticeSeen()) {
+            el.featureNotice.hidden = false;
+        }
+    }
+'''
+          if marker not in js:
+              raise SystemExit("saveSettings marker not found")
+          js = js.replace(marker, addition, 1)
+
+          js = js.replace('''        el.s_defaultBreak.value = settings.defaultBreak ?? 60;''', '''        el.s_defaultBreak.value = settings.defaultBreak ?? 60;
+        el.s_deductBreak.checked = settings.deductBreakByDefault !== false;
+        syncBreakSettingControls();''', 1)
+          js = js.replace('''            defaultBreak: clamp(el.s_defaultBreak.value, 0, 24 * 60),
+            weekTemplate:''', '''            defaultBreak: clamp(el.s_defaultBreak.value, 0, 24 * 60),
+            deductBreakByDefault: !!el.s_deductBreak.checked,
+            weekTemplate:''', 1)
+          js = js.replace('''                breakMin: settings.defaultBreak,''', '''                breakMin: defaultBreakForNewDay(),''', 1)
+          js = js.replace('''        el.ed_break.value = clamp(settings.defaultBreak ?? 60, 0, 24 * 60);''', '''        el.ed_break.value = defaultBreakForNewDay();''', 1)
+          js = js.replace('''        el.qa_break.value = clamp(settings.defaultBreak ?? 60, 0, 24 * 60);''', '''        el.qa_break.value = defaultBreakForNewDay();''', 1)
+          js = js.replace('''            el.qa_break.value || settings.defaultBreak || 0,''', '''            el.qa_break.value === "" ? defaultBreakForNewDay() : el.qa_break.value,''', 1)
+
+          listener_marker = '''    el.autoFillCycleBtn.addEventListener("click", autoFillCycle);
+'''
+          listener_addition = listener_marker + '''    el.s_deductBreak.addEventListener("change", syncBreakSettingControls);
+    el.dismissFeatureNotice.addEventListener("click", closeFeatureNotice);
+    el.openBreakSettings.addEventListener("click", () => {
+        closeFeatureNotice();
+        syncSettingsToForm();
+        openSheet(el.settingsSheet);
+    });
+'''
+          if listener_marker not in js:
+              raise SystemExit("Listener marker not found")
+          js = js.replace(listener_marker, listener_addition, 1)
+
+          js = js.replace('''        settings.weekTemplate = Array.from({ length: 7 }, (_, index) => settings.weekTemplate?.[index] || { start: "", end: "" });
+        saveSettings();''', '''        settings.weekTemplate = Array.from({ length: 7 }, (_, index) => settings.weekTemplate?.[index] || { start: "", end: "" });
+        settings.deductBreakByDefault = settings.deductBreakByDefault !== false;
+        saveSettings();''', 1)
+          js = js.replace('''        render();
+    })();''', '''        render();
+        showFeatureNoticeOnce();
+    })();''', 1)
+          app.write_text(js, encoding="utf-8")
+
+          styles = Path("styles.css")
+          css = styles.read_text(encoding="utf-8")
+          css += '''
+
+.control.is-disabled {
+    opacity: .55;
+}
+
+.feature-notice[hidden] {
+    display: none;
+}
+
+.feature-notice {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, .72);
+    backdrop-filter: blur(6px);
+}
+
+.feature-notice-card {
+    width: min(460px, 100%);
+    padding: 22px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+}
+
+.feature-notice-card h2 {
+    margin: 6px 0 8px;
+}
+
+.feature-notice-card p {
+    margin: 0;
+    color: var(--ink-dim);
+}
+
+.feature-notice-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+@media (max-width: 420px) {
+    .feature-notice-actions {
+        grid-template-columns: 1fr;
+    }
+}
+'''
+          styles.write_text(css, encoding="utf-8")
+      - name: Remove one-time workflow and commit changes
+        run: |
+          git rm .github/workflows/apply-break-feature.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html app.js styles.css
+          git commit -m "Add persistent default break control"
+          git push origin feature/persistent-break-toggle
