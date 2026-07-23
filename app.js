@@ -1,5 +1,5 @@
 /* WorkPay feature loader
-   Adds a persistent lunch-break preference and a one-time announcement,
+   Adds a persistent lunch-break preference and direct calendar editing,
    then loads the original calculator application from its last stable commit.
 */
 (function () {
@@ -10,6 +10,7 @@
     const SAVED_BREAK_KEY = "workpay_saved_default_break_v1";
     const NOTICE_KEY = "workpay_break_feature_seen_v1";
     const ORIGINAL_APP_URL = "https://cdn.jsdelivr.net/gh/Ntokozo-bit/paycalc@aaa4084318301e5fb0a12537b44cc6bff23ccdbe/app.js";
+    const DIRECT_EDIT_URL = "./direct-date-edit.js?v=1";
 
     function readJson(key, fallback) {
         try {
@@ -225,6 +226,18 @@
         if (!readBool(NOTICE_KEY, false)) notice.hidden = false;
     }
 
+    function loadDirectDateEditing() {
+        if (document.querySelector('script[data-workpay-direct-edit]')) return;
+        const script = document.createElement("script");
+        script.src = DIRECT_EDIT_URL;
+        script.async = false;
+        script.dataset.workpayDirectEdit = "true";
+        script.onerror = () => {
+            console.error("WorkPay direct calendar editing could not load.");
+        };
+        document.head.appendChild(script);
+    }
+
     function loadOriginalApp() {
         const script = document.createElement("script");
         script.src = ORIGINAL_APP_URL;
@@ -232,6 +245,7 @@
         script.onload = () => {
             injectBreakSetting();
             createNotice();
+            loadDirectDateEditing();
         };
         script.onerror = () => {
             window.alert("WorkPay could not load. Please check your internet connection and refresh the page.");
