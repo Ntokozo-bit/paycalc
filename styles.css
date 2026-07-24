@@ -111,6 +111,7 @@ button {
 .btn-secondary:active,
 .btn-ghost:active,
 .btn-danger:active,
+.btn-normal-day:active,
 .fab:active,
 .calendar-cell:active {
     transform: scale(var(--tap));
@@ -626,6 +627,49 @@ input[type="checkbox"] {
     background: rgba(255, 107, 107, .14);
     border-color: rgba(255, 107, 107, .45);
     color: #ffd7d7;
+}
+
+.btn-normal-day {
+    width: 100%;
+    min-height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+    margin: 0 0 12px;
+    padding: 10px 14px;
+    border: 1px solid #a99cff;
+    border-radius: var(--radius);
+    color: #0b1020;
+    background: linear-gradient(135deg, var(--accent), #a88cff);
+    box-shadow: 0 10px 24px rgba(110, 168, 255, .24);
+    text-align: left;
+}
+
+.btn-normal-day .i {
+    width: 26px;
+    height: 26px;
+    flex: 0 0 auto;
+}
+
+.btn-normal-day span {
+    display: grid;
+    gap: 2px;
+}
+
+.btn-normal-day strong {
+    font-size: .96rem;
+}
+
+.btn-normal-day small {
+    font-size: .78rem;
+    font-weight: 700;
+    opacity: .76;
+}
+
+.btn-normal-day:focus-visible {
+    outline: 3px solid rgba(245, 242, 232, .9);
+    outline-offset: 2px;
 }
 
 .btn-ghost.sm,
