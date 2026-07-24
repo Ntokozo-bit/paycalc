@@ -105,8 +105,6 @@
                 <span><i class="dot sunday"></i>Sunday marker</span>
                 <span><i class="dot holiday"></i>Holiday</span>
             </div>
-            <p class="helper"><strong>One-tap normal day:</strong> tap an empty ordinary date to save that weekday's schedule immediately with overtime off. Saved, Sunday, holiday, future, or unscheduled dates open the editor.</p>
-
             <div class="calendar-weekdays" aria-hidden="true">
                 <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
             </div>
@@ -328,6 +326,10 @@
                     <label class="control"><span class="lab">Date</span><input type="date" id="ed_date" required /></label>
                     <label class="control chk"><span class="lab">Holiday?</span><input type="checkbox" id="ed_holiday" /></label>
                 </div>
+                <button class="btn-normal-day" type="button" id="ed_normalDay">
+                    <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>
+                    <span><strong>Save Normal Day</strong><small>No overtime · uses your normal weekday schedule</small></span>
+                </button>
                 <div class="row two">
                     <label class="control"><span class="lab">Start</span><input type="time" id="ed_start" /></label>
                     <label class="control"><span class="lab">End</span><input type="time" id="ed_end" /></label>
@@ -375,7 +377,7 @@
             <div class="help">
                 <ol>
                     <li><strong>Set your Settings</strong>: hourly rate, overtime, Sunday and holiday multipliers, pay-cycle start day, and your weekly template.</li>
-                    <li><strong>Use the pay month calendar</strong>: tap an empty ordinary date once to save a normal day from your weekly schedule with overtime off. Saved, Sunday, holiday, future, or unscheduled dates open the detailed editor. The month shown is your 21 to 20 payroll month, not a normal calendar month.</li>
+                    <li><strong>Add a normal day quickly</strong>: tap a calendar date to open Day Details, then use the colored <strong>Save Normal Day</strong> button below Holiday. It uses your normal weekday schedule and current break setting with overtime off. Use the other fields for overtime, Sundays, holidays, paid-off days, or custom hours.</li>
                     <li><strong>Check the selected day</strong>: after tapping a date, the panel below the calendar shows hours, pay, and the exact rule used.</li>
                     <li><strong>Selected month total</strong>: Basic Salary only counts normal daily hours inside the viewed 21 to 20 payroll month. It excludes overtime and Sunday/holiday multipliers, but includes paid-off days as normal paid hours.</li>
                     <li><strong>Selected cycle total</strong>: Cycle shows the full money for the same 21 to 20 range, including normal pay, overtime, Sunday pay, holiday pay, breaks, paid-off days, and per-day overrides.</li>
