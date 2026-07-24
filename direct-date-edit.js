@@ -1,6 +1,7 @@
 /* WorkPay direct calendar editing
-   Lets every visible calendar date open the Add/Edit Day sheet, including
-   dates that belong to completed pay cycles.
+   One tap saves an empty ordinary day with the weekly template and overtime off.
+   Saved, special, future, or unscheduled dates still open the Add/Edit Day sheet,
+   including dates that belong to completed pay cycles.
 */
 (function () {
     "use strict";
@@ -10,6 +11,7 @@
         ENTRIES: "paycalc_entries_v2",
         HISTORY: "paycalc_history_v1"
     };
+    const DEDUCT_BREAK_KEY = "workpay_deduct_break_v1";
 
     const calendar = document.getElementById("cycleCalendar");
     const editSheet = document.getElementById("editSheet");
@@ -156,6 +158,80 @@
         return null;
     }
 
+    function readBool(key, fallback) {
+        try {
+            const value = localStorage.getItem(key);
+            if (value === null) return fallback;
+            return value === "true";
+        } catch {
+            return fallback;
+        }
+    }
+
+    function createId() {
+        try {
+            const values = new Uint32Array(2);
+            crypto.getRandomValues(values);
+            return Array.from(values)
+                .map(value => value.toString(16).padStart(8, "0"))
+                .join("");
+        } catch {
+            return String(Date.now()) + Math.random().toString(16).slice(2);
+        }
+    }
+
+    function quickNormalDayValues(dateStr) {
+        const date = parseInputDate(dateStr);
+        if (!date || date > new Date()) return null;
+        if (date.getDay() === 0 || isAutoHoliday(dateStr)) return null;
+        if (findSavedRow(dateStr)) return null;
+
+        const settings = readJson(STORE.SETTINGS, {});
+        const template = Array.isArray(settings.weekTemplate)
+            ? (settings.weekTemplate[date.getDay()] || {})
+            : {};
+        if (!template.start || !template.end) return null;
+
+        return {
+            settings,
+            start: template.start,
+            end: template.end
+        };
+    }
+
+    function saveQuickNormalDay(dateStr, values) {
+        const active = readJson(STORE.ENTRIES, []);
+        const entries = Array.isArray(active) ? active : [];
+        if (findSavedRow(dateStr)) return false;
+
+        const deductBreak = readBool(DEDUCT_BREAK_KEY, true);
+        entries.push({
+            id: createId(),
+            dateISO: inputDateToIso(dateStr),
+            start: values.start,
+            end: values.end,
+            breakMin: deductBreak ? clamp(values.settings.defaultBreak ?? 60, 0, 1440) : 0,
+            isHoliday: false,
+            paidOff: false,
+            applyOvertime: false,
+            createdAt: Date.now() + Math.random(),
+            overrides: { useGlobal: true }
+        });
+
+        try {
+            localStorage.setItem(STORE.ENTRIES, JSON.stringify(entries));
+        } catch {
+            window.alert("WorkPay could not save this day. Please check browser storage and try again.");
+            return false;
+        }
+
+        if (typeof window.gtag === "function") {
+            window.gtag("event", "work_day_saved", { entry_method: "one_tap_normal" });
+        }
+        window.location.reload();
+        return true;
+    }
+
     function syncPaidOffControls() {
         const disabled = !!fields.paidOff.checked;
         [fields.start, fields.end, fields.breakMin, fields.applyOt].forEach(field => {
@@ -256,6 +332,15 @@
         const cell = event.target.closest("button.calendar-cell[data-date]");
         if (!cell || !calendar.contains(cell)) return;
         const dateStr = cell.dataset.date;
+        const quickValues = quickNormalDayValues(dateStr);
+
+        if (quickValues) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            saveQuickNormalDay(dateStr, quickValues);
+            return;
+        }
+
         window.setTimeout(() => openEditorForDate(dateStr), 0);
     }, true);
 
