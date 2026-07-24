@@ -10,7 +10,7 @@
     const SAVED_BREAK_KEY = "workpay_saved_default_break_v1";
     const NOTICE_KEY = "workpay_one_tap_notice_seen_v1";
     const ORIGINAL_APP_URL = "https://cdn.jsdelivr.net/gh/Ntokozo-bit/paycalc@aaa4084318301e5fb0a12537b44cc6bff23ccdbe/app.js";
-    const DIRECT_EDIT_URL = "./direct-date-edit.js?v=2";
+    const DIRECT_EDIT_URL = "./direct-date-edit.js?v=3";
 
     function readJson(key, fallback) {
         try {
@@ -202,8 +202,8 @@
         notice.innerHTML = `
             <div class="workpay-feature-card">
                 <span class="eyebrow">New feature</span>
-                <h2 id="workpayFeatureTitle">One-tap normal days</h2>
-                <p>Tap an empty ordinary calendar date to save a normal workday immediately. WorkPay uses that weekday's saved schedule and your current break setting, with overtime off. Saved days, Sundays, holidays, future dates, and unscheduled dates still open the detailed editor.</p>
+                <h2 id="workpayFeatureTitle">Normal Day shortcut</h2>
+                <p>Open a calendar date, then tap the colored <strong>Save Normal Day</strong> button directly below Holiday. It saves your normal weekday schedule and current break setting with overtime off. Use the detailed fields for overtime, Sundays, holidays, paid-off days, or custom hours.</p>
                 <div class="workpay-feature-actions">
                     <button class="btn-secondary" type="button" id="workpayNoticeDismiss">Got it</button>
                     <button class="btn-primary" type="button" id="workpayNoticeSettings">Open Settings</button>
