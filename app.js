@@ -95,6 +95,7 @@
                 place-items: center;
                 padding: 20px;
                 background: rgba(0, 0, 0, .74);
+                -webkit-backdrop-filter: blur(6px);
                 backdrop-filter: blur(6px);
             }
             .workpay-feature-card {
@@ -238,6 +239,30 @@
         document.head.appendChild(script);
     }
 
+    function setupMonthPickerFallback() {
+        const picker = document.getElementById("monthPicker");
+        if (!picker) return;
+
+        const isValidMonth = value => /^(?!0000)[0-9]{4}-(0[1-9]|1[0-2])$/.test(value);
+
+        picker.addEventListener("input", () => {
+            picker.setCustomValidity(
+                isValidMonth(picker.value) ? "" : "Enter a valid month in YYYY-MM format."
+            );
+        });
+
+        picker.addEventListener("change", event => {
+            if (isValidMonth(picker.value)) {
+                picker.setCustomValidity("");
+                return;
+            }
+
+            event.stopImmediatePropagation();
+            picker.setCustomValidity("Enter a valid month in YYYY-MM format.");
+            picker.reportValidity();
+        }, true);
+    }
+
     function loadOriginalApp() {
         const script = document.createElement("script");
         script.src = ORIGINAL_APP_URL;
@@ -256,5 +281,6 @@
     prepareStoredSettings();
     addStyles();
     injectBreakSetting();
+    setupMonthPickerFallback();
     loadOriginalApp();
 })();
