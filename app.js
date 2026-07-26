@@ -10,7 +10,7 @@
     const SAVED_BREAK_KEY = "workpay_saved_default_break_v1";
     const NOTICE_KEY = "workpay_one_tap_notice_seen_v1";
     const ORIGINAL_APP_URL = "https://cdn.jsdelivr.net/gh/Ntokozo-bit/paycalc@aaa4084318301e5fb0a12537b44cc6bff23ccdbe/app.js";
-    const DIRECT_EDIT_URL = "./direct-date-edit.js?v=3";
+    const DIRECT_EDIT_URL = "./direct-date-edit.js?v=4";
 
     function readJson(key, fallback) {
         try {
