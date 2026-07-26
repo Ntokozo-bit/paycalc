@@ -93,7 +93,16 @@
                     <button class="btn-secondary compact" type="button" id="nextMonthBtn">Next Month</button>
                     <label class="month-jump">
                         <span class="sr-only">Jump to month</span>
-                        <input type="month" id="monthPicker" />
+                        <input
+                            type="text"
+                            id="monthPicker"
+                            inputmode="numeric"
+                            pattern="(?!0000)[0-9]{4}-(0[1-9]|1[0-2])"
+                            maxlength="7"
+                            placeholder="YYYY-MM"
+                            aria-label="Jump to month in YYYY-MM format"
+                            title="Enter a month in YYYY-MM format"
+                        />
                     </label>
                 </div>
             </div>
