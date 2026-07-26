@@ -326,9 +326,11 @@
                     <label class="control"><span class="lab">Date</span><input type="date" id="ed_date" required /></label>
                     <label class="control chk"><span class="lab">Holiday?</span><input type="checkbox" id="ed_holiday" /></label>
                 </div>
-                <button class="btn-normal-day" type="button" id="ed_normalDay">
-                    <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>
-                    <span><strong>Save Normal Day</strong><small>No overtime · uses your normal weekday schedule</small></span>
+                <button class="btn-normal-day" type="button" id="ed_normalDay" aria-pressed="false">
+                    <span class="normal-day-box" aria-hidden="true">
+                        <svg class="normal-day-check" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>
+                    </span>
+                    <span class="normal-day-copy"><strong>Save Normal Day</strong><small>No overtime · uses your normal weekday schedule</small></span>
                 </button>
                 <div class="row two">
                     <label class="control"><span class="lab">Start</span><input type="time" id="ed_start" /></label>
