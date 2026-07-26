@@ -44,6 +44,7 @@
     if (Object.values(fields).some(field => !field)) return;
 
     let pendingHistoricalEdit = null;
+    let normalDaySaveTimer = null;
 
     function readJson(key, fallback) {
         try {
@@ -169,7 +170,20 @@
         }
     }
 
+    function resetNormalDayButton() {
+        if (normalDaySaveTimer !== null) {
+            window.clearTimeout(normalDaySaveTimer);
+            normalDaySaveTimer = null;
+        }
+        fields.normalDay.dataset.saving = "false";
+        fields.normalDay.classList.remove("is-confirmed");
+        fields.normalDay.setAttribute("aria-pressed", "false");
+        const label = fields.normalDay.querySelector("strong");
+        if (label) label.textContent = "Save Normal Day";
+    }
+
     function saveNormalDayFromEditor() {
+        if (fields.normalDay.dataset.saving === "true") return;
         const dateStr = fields.date.value;
         const date = parseInputDate(dateStr);
         if (!date) {
@@ -204,15 +218,24 @@
         fields.overrides.hidden = true;
         syncPaidOffControls();
 
+        fields.normalDay.dataset.saving = "true";
+        fields.normalDay.classList.add("is-confirmed");
+        fields.normalDay.setAttribute("aria-pressed", "true");
+        const label = fields.normalDay.querySelector("strong");
+        if (label) label.textContent = "Normal Day Selected";
+
         if (typeof window.gtag === "function") {
             window.gtag("event", "normal_day_button_used");
         }
 
-        if (typeof editForm.requestSubmit === "function") {
-            editForm.requestSubmit();
-        } else {
-            editForm.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-        }
+        normalDaySaveTimer = window.setTimeout(() => {
+            normalDaySaveTimer = null;
+            if (typeof editForm.requestSubmit === "function") {
+                editForm.requestSubmit();
+            } else {
+                editForm.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+            }
+        }, 400);
     }
 
     function syncPaidOffControls() {
@@ -235,6 +258,7 @@
     }
 
     function openEditorForDate(dateStr) {
+        resetNormalDayButton();
         const date = parseInputDate(dateStr);
         if (!date) return;
 
@@ -328,6 +352,7 @@
     [closeEditBtn, cancelEditBtn].forEach(button => {
         button?.addEventListener("click", () => {
             pendingHistoricalEdit = null;
+            resetNormalDayButton();
         });
     });
 })();
