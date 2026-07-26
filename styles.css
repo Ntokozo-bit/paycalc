@@ -644,15 +644,30 @@ input[type="checkbox"] {
     background: linear-gradient(135deg, var(--accent), #a88cff);
     box-shadow: 0 10px 24px rgba(110, 168, 255, .24);
     text-align: left;
+    transition: background .18s ease, box-shadow .18s ease;
 }
 
-.btn-normal-day .i {
-    width: 26px;
-    height: 26px;
+.normal-day-box {
+    width: 28px;
+    height: 28px;
     flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    border: 2px solid #0b1020;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, .16);
+    transition: background .16s ease, transform .16s ease;
 }
 
-.btn-normal-day span {
+.normal-day-check {
+    width: 22px;
+    height: 22px;
+    opacity: 0;
+    transform: scale(.55);
+    transition: opacity .14s ease, transform .16s ease;
+}
+
+.normal-day-copy {
     display: grid;
     gap: 2px;
 }
@@ -665,6 +680,21 @@ input[type="checkbox"] {
     font-size: .78rem;
     font-weight: 700;
     opacity: .76;
+}
+
+.btn-normal-day.is-confirmed {
+    background: linear-gradient(135deg, var(--worked), #79dca0);
+    box-shadow: 0 10px 24px rgba(72, 199, 116, .26);
+}
+
+.btn-normal-day.is-confirmed .normal-day-box {
+    background: #f5f2e8;
+    transform: scale(1.06);
+}
+
+.btn-normal-day.is-confirmed .normal-day-check {
+    opacity: 1;
+    transform: scale(1);
 }
 
 .btn-normal-day:focus-visible {
