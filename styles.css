@@ -37,7 +37,6 @@ body.app {
     font-size: 16px;
     line-height: 1.45;
     overflow-x: hidden;
-    -webkit-text-size-adjust: 100%;
 }
 
 button,
@@ -60,6 +59,7 @@ button {
     padding: 12px 16px;
     background: rgba(17, 17, 15, .96);
     border-bottom: 1px solid var(--line);
+    -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
 }
 
@@ -365,8 +365,8 @@ button {
     color: var(--ink);
     background: var(--surface-2);
     text-align: left;
-    appearance: none;
     -webkit-appearance: none;
+    appearance: none;
 }
 
 .calendar-cell.blank {
