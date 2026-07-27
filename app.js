@@ -8,9 +8,9 @@
     const SETTINGS_KEY = "paycalc_settings_v2";
     const DEDUCT_KEY = "workpay_deduct_break_v1";
     const SAVED_BREAK_KEY = "workpay_saved_default_break_v1";
-    const NOTICE_KEY = "workpay_break_feature_seen_v1";
+    const NOTICE_KEY = "workpay_one_tap_notice_seen_v1";
     const ORIGINAL_APP_URL = "https://cdn.jsdelivr.net/gh/Ntokozo-bit/paycalc@aaa4084318301e5fb0a12537b44cc6bff23ccdbe/app.js";
-    const DIRECT_EDIT_URL = "./direct-date-edit.js?v=1";
+    const DIRECT_EDIT_URL = "./direct-date-edit.js?v=5";
 
     function readJson(key, fallback) {
         try {
@@ -95,6 +95,7 @@
                 place-items: center;
                 padding: 20px;
                 background: rgba(0, 0, 0, .74);
+                -webkit-backdrop-filter: blur(6px);
                 backdrop-filter: blur(6px);
             }
             .workpay-feature-card {
@@ -202,8 +203,8 @@
         notice.innerHTML = `
             <div class="workpay-feature-card">
                 <span class="eyebrow">New feature</span>
-                <h2 id="workpayFeatureTitle">Lunch-break control</h2>
-                <p>Working without a fixed lunch break? Turn off <strong>Deduct lunch break by default</strong> in Settings. New workdays will use 0 break minutes until you turn it on again.</p>
+                <h2 id="workpayFeatureTitle">Normal Day shortcut</h2>
+                <p>Open a calendar date, then tap the colored <strong>Save Normal Day</strong> button directly below Holiday. It turns green and stays checked when you return to that date; tap it again to cancel and return it to blue. It saves your normal weekday schedule and current break setting with overtime off. Use the detailed fields for overtime, Sundays, holidays, paid-off days, or custom hours.</p>
                 <div class="workpay-feature-actions">
                     <button class="btn-secondary" type="button" id="workpayNoticeDismiss">Got it</button>
                     <button class="btn-primary" type="button" id="workpayNoticeSettings">Open Settings</button>
@@ -238,6 +239,30 @@
         document.head.appendChild(script);
     }
 
+    function setupMonthPickerFallback() {
+        const picker = document.getElementById("monthPicker");
+        if (!picker) return;
+
+        const isValidMonth = value => /^(?!0000)[0-9]{4}-(0[1-9]|1[0-2])$/.test(value);
+
+        picker.addEventListener("input", () => {
+            picker.setCustomValidity(
+                isValidMonth(picker.value) ? "" : "Enter a valid month in YYYY-MM format."
+            );
+        });
+
+        picker.addEventListener("change", event => {
+            if (isValidMonth(picker.value)) {
+                picker.setCustomValidity("");
+                return;
+            }
+
+            event.stopImmediatePropagation();
+            picker.setCustomValidity("Enter a valid month in YYYY-MM format.");
+            picker.reportValidity();
+        }, true);
+    }
+
     function loadOriginalApp() {
         const script = document.createElement("script");
         script.src = ORIGINAL_APP_URL;
@@ -256,5 +281,6 @@
     prepareStoredSettings();
     addStyles();
     injectBreakSetting();
+    setupMonthPickerFallback();
     loadOriginalApp();
 })();

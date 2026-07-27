@@ -1,6 +1,7 @@
 /* WorkPay direct calendar editing
    Lets every visible calendar date open the Add/Edit Day sheet, including
-   dates that belong to completed pay cycles.
+   dates that belong to completed pay cycles. A prominent editor button toggles
+   an ordinary day from the weekly template with overtime disabled.
 */
 (function () {
     "use strict";
@@ -10,6 +11,8 @@
         ENTRIES: "paycalc_entries_v2",
         HISTORY: "paycalc_history_v1"
     };
+    const DEDUCT_BREAK_KEY = "workpay_deduct_break_v1";
+    const NORMAL_DAY_STATE_KEY = "workpay_normal_days_v1";
 
     const calendar = document.getElementById("cycleCalendar");
     const editSheet = document.getElementById("editSheet");
@@ -24,6 +27,7 @@
         id: document.getElementById("ed_id"),
         date: document.getElementById("ed_date"),
         holiday: document.getElementById("ed_holiday"),
+        normalDay: document.getElementById("ed_normalDay"),
         start: document.getElementById("ed_start"),
         end: document.getElementById("ed_end"),
         breakMin: document.getElementById("ed_break"),
@@ -41,6 +45,8 @@
     if (Object.values(fields).some(field => !field)) return;
 
     let pendingHistoricalEdit = null;
+    let normalDaySaveTimer = null;
+    let pendingNormalDaySave = null;
 
     function readJson(key, fallback) {
         try {
@@ -66,6 +72,56 @@
                 else localStorage.setItem(STORE.HISTORY, previousHistory);
             } catch {}
             window.alert("WorkPay could not save this day. Please check browser storage and try again.");
+            return false;
+        }
+    }
+
+    function readNormalDayState() {
+        const state = readJson(NORMAL_DAY_STATE_KEY, {});
+        return state && typeof state === "object" && !Array.isArray(state) ? state : {};
+    }
+
+    function writeNormalDayState(state, showAlert = true) {
+        try {
+            if (Object.keys(state).length) {
+                localStorage.setItem(NORMAL_DAY_STATE_KEY, JSON.stringify(state));
+            } else {
+                localStorage.removeItem(NORMAL_DAY_STATE_KEY);
+            }
+            return true;
+        } catch {
+            if (showAlert) {
+                window.alert("WorkPay could not remember this Normal Day. Please check browser storage and try again.");
+            }
+            return false;
+        }
+    }
+
+    function restoreStoredValue(key, value) {
+        try {
+            if (value === null) localStorage.removeItem(key);
+            else localStorage.setItem(key, value);
+        } catch {}
+    }
+
+    function writeNormalDayCancellation(active, history, state) {
+        const previousEntries = localStorage.getItem(STORE.ENTRIES);
+        const previousHistory = localStorage.getItem(STORE.HISTORY);
+        const previousNormalDays = localStorage.getItem(NORMAL_DAY_STATE_KEY);
+        try {
+            localStorage.setItem(STORE.ENTRIES, JSON.stringify(active));
+            localStorage.setItem(STORE.HISTORY, JSON.stringify(history));
+            if (Object.keys(state).length) {
+                localStorage.setItem(NORMAL_DAY_STATE_KEY, JSON.stringify(state));
+            } else {
+                localStorage.removeItem(NORMAL_DAY_STATE_KEY);
+            }
+            return true;
+        } catch {
+            restoreStoredValue(STORE.ENTRIES, previousEntries);
+            restoreStoredValue(STORE.HISTORY, previousHistory);
+            restoreStoredValue(NORMAL_DAY_STATE_KEY, previousNormalDays);
+            window.alert("WorkPay could not cancel this Normal Day. Your saved data was left unchanged.");
             return false;
         }
     }
@@ -149,11 +205,287 @@
         if (activeRow) return { row: activeRow, historical: false };
 
         const history = readJson(STORE.HISTORY, []);
-        for (const cycle of Array.isArray(history) ? history : []) {
+        for (const [cycleIndex, cycle] of (Array.isArray(history) ? history : []).entries()) {
             const row = (Array.isArray(cycle.entries) ? cycle.entries : []).find(item => localDateKey(item.dateISO) === dateStr);
-            if (row) return { row, historical: true };
+            if (row) {
+                return {
+                    row,
+                    historical: true,
+                    cycleKey: cycle.key || null,
+                    cycleIndex
+                };
+            }
         }
         return null;
+    }
+
+    function readBool(key, fallback) {
+        try {
+            const value = localStorage.getItem(key);
+            if (value === null) return fallback;
+            return value === "true";
+        } catch {
+            return fallback;
+        }
+    }
+
+    function renderNormalDayButton(selected, dateStr = fields.date.value) {
+        fields.normalDay.dataset.date = dateStr || "";
+        fields.normalDay.classList.toggle("is-confirmed", selected);
+        fields.normalDay.setAttribute("aria-pressed", selected ? "true" : "false");
+        const label = fields.normalDay.querySelector("strong");
+        if (label) label.textContent = selected ? "Normal Day Selected" : "Save Normal Day";
+    }
+
+    function resetNormalDayButton() {
+        if (normalDaySaveTimer !== null) {
+            window.clearTimeout(normalDaySaveTimer);
+            normalDaySaveTimer = null;
+        }
+        pendingNormalDaySave = null;
+        fields.normalDay.dataset.saving = "false";
+        renderNormalDayButton(false, "");
+    }
+
+    function hasNormalDayShape(row) {
+        return !!row
+            && !row.isHoliday
+            && !row.paidOff
+            && row.applyOvertime === false
+            && (!row.overrides || row.overrides.useGlobal !== false);
+    }
+
+    function matchesConfiguredNormalDay(row, dateStr, settings) {
+        const date = parseInputDate(dateStr);
+        if (!date || !hasNormalDayShape(row)) return false;
+        const template = Array.isArray(settings.weekTemplate)
+            ? (settings.weekTemplate[date.getDay()] || {})
+            : {};
+        const expectedBreak = readBool(DEDUCT_BREAK_KEY, true)
+            ? clamp(settings.defaultBreak ?? 60, 0, 1440)
+            : 0;
+        return !!template.start
+            && !!template.end
+            && row.start === template.start
+            && row.end === template.end
+            && Number(row.breakMin) === expectedBreak;
+    }
+
+    function markerForSavedRow(saved) {
+        if (!saved) return null;
+        return {
+            historical: !!saved.historical,
+            cycleKey: saved.cycleKey || null,
+            cycleIndex: Number.isInteger(saved.cycleIndex) ? saved.cycleIndex : null,
+            row: saved.row
+        };
+    }
+
+    function syncNormalDayButton(dateStr = fields.date.value) {
+        if (!parseInputDate(dateStr)) {
+            renderNormalDayButton(false, dateStr);
+            return;
+        }
+
+        const saved = findSavedRow(dateStr);
+        const settings = readJson(STORE.SETTINGS, {});
+        const state = readNormalDayState();
+        let marker = state[dateStr] || null;
+
+        if (marker && (!saved || !hasNormalDayShape(saved.row))) {
+            delete state[dateStr];
+            writeNormalDayState(state, false);
+            marker = null;
+        }
+
+        if (!marker && saved && matchesConfiguredNormalDay(saved.row, dateStr, settings)) {
+            marker = {
+                entryId: saved.row.id || null,
+                previous: null
+            };
+            state[dateStr] = marker;
+            writeNormalDayState(state, false);
+        } else if (marker && saved && marker.entryId !== (saved.row.id || null)) {
+            marker.entryId = saved.row.id || null;
+            state[dateStr] = marker;
+            writeNormalDayState(state, false);
+        }
+
+        renderNormalDayButton(!!marker && !!saved, dateStr);
+    }
+
+    function removeOneSavedRow(active, history, dateStr, entryId) {
+        let removed = false;
+        const matches = row => {
+            if (removed) return false;
+            const same = entryId
+                ? row.id === entryId
+                : localDateKey(row.dateISO) === dateStr;
+            if (same) removed = true;
+            return same;
+        };
+
+        const cleanActive = (Array.isArray(active) ? active : []).filter(row => !matches(row));
+        const cleanHistory = (Array.isArray(history) ? history : []).map(cycle => ({
+            ...cycle,
+            entries: (Array.isArray(cycle.entries) ? cycle.entries : []).filter(row => !matches(row))
+        }));
+        return { active: cleanActive, history: cleanHistory };
+    }
+
+    function restorePreviousRow(active, history, previous) {
+        if (!previous?.row) return { active, history };
+
+        if (!previous.historical) {
+            return { active: [...active, previous.row], history };
+        }
+
+        let restored = false;
+        const restoredHistory = history.map((cycle, index) => {
+            const sameCycle = previous.cycleKey
+                ? cycle.key === previous.cycleKey
+                : index === previous.cycleIndex;
+            if (!sameCycle) return cycle;
+            restored = true;
+            return {
+                ...cycle,
+                entries: [...(Array.isArray(cycle.entries) ? cycle.entries : []), previous.row]
+            };
+        });
+
+        return restored
+            ? { active, history: restoredHistory }
+            : { active: [...active, previous.row], history: restoredHistory };
+    }
+
+    function cancelNormalDayFromEditor(dateStr) {
+        const state = readNormalDayState();
+        const marker = state[dateStr];
+        const saved = findSavedRow(dateStr);
+
+        if (!marker || !saved) {
+            delete state[dateStr];
+            writeNormalDayState(state, false);
+            renderNormalDayButton(false, dateStr);
+            return;
+        }
+
+        const active = readJson(STORE.ENTRIES, []);
+        const history = readJson(STORE.HISTORY, []);
+        const removed = removeOneSavedRow(
+            Array.isArray(active) ? active : [],
+            Array.isArray(history) ? history : [],
+            dateStr,
+            marker.entryId || saved.row.id || null
+        );
+        const restored = restorePreviousRow(removed.active, removed.history, marker.previous);
+        delete state[dateStr];
+
+        if (!writeNormalDayCancellation(restored.active, restored.history, state)) return;
+
+        fields.normalDay.dataset.saving = "true";
+        renderNormalDayButton(false, dateStr);
+        if (typeof window.gtag === "function") {
+            window.gtag("event", "normal_day_button_cancelled");
+        }
+        normalDaySaveTimer = window.setTimeout(() => {
+            normalDaySaveTimer = null;
+            window.location.reload();
+        }, 300);
+    }
+
+    function saveNormalDayFromEditor() {
+        if (fields.normalDay.dataset.saving === "true") return;
+        const dateStr = fields.date.value;
+        if (fields.normalDay.getAttribute("aria-pressed") === "true") {
+            cancelNormalDayFromEditor(dateStr);
+            return;
+        }
+        const date = parseInputDate(dateStr);
+        if (!date) {
+            window.alert("Please choose a valid date.");
+            return;
+        }
+        if (date.getDay() === 0 || isAutoHoliday(dateStr)) {
+            window.alert("This is a Sunday or public holiday. Use the detailed fields so WorkPay can apply the correct special-day pay.");
+            return;
+        }
+
+        const settings = readJson(STORE.SETTINGS, {});
+        const template = Array.isArray(settings.weekTemplate)
+            ? (settings.weekTemplate[date.getDay()] || {})
+            : {};
+        const start = template.start || fields.start.value;
+        const end = template.end || fields.end.value;
+        if (!start || !end) {
+            window.alert("Set the normal start and end time for this weekday in Settings first.");
+            return;
+        }
+
+        fields.start.value = start;
+        fields.end.value = end;
+        fields.breakMin.value = readBool(DEDUCT_BREAK_KEY, true)
+            ? clamp(settings.defaultBreak ?? 60, 0, 1440)
+            : 0;
+        fields.holiday.checked = false;
+        fields.paidOff.checked = false;
+        fields.applyOt.checked = false;
+        fields.useGlobal.checked = true;
+        fields.overrides.hidden = true;
+        syncPaidOffControls();
+
+        const saved = findSavedRow(dateStr);
+        const state = readNormalDayState();
+        const previousNormalDays = localStorage.getItem(NORMAL_DAY_STATE_KEY);
+        const marker = {
+            entryId: saved?.row?.id || null,
+            previous: markerForSavedRow(saved)
+        };
+
+        fields.normalDay.dataset.saving = "true";
+        renderNormalDayButton(true, dateStr);
+
+        if (typeof window.gtag === "function") {
+            window.gtag("event", "normal_day_button_used");
+        }
+
+        normalDaySaveTimer = window.setTimeout(() => {
+            normalDaySaveTimer = null;
+            state[dateStr] = marker;
+            if (!writeNormalDayState(state)) {
+                fields.normalDay.dataset.saving = "false";
+                renderNormalDayButton(false, dateStr);
+                return;
+            }
+
+            pendingNormalDaySave = {
+                dateStr,
+                previousNormalDays,
+                failed: false
+            };
+            if (typeof editForm.requestSubmit === "function") {
+                editForm.requestSubmit();
+            } else {
+                editForm.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+            }
+
+            const stored = findSavedRow(dateStr);
+            if (!stored || !hasNormalDayShape(stored.row)) {
+                restoreStoredValue(NORMAL_DAY_STATE_KEY, previousNormalDays);
+                fields.normalDay.dataset.saving = "false";
+                renderNormalDayButton(false, dateStr);
+                if (!pendingNormalDaySave.failed) {
+                    window.alert("WorkPay could not save this Normal Day. Your existing data was left unchanged.");
+                }
+            } else {
+                const currentState = readNormalDayState();
+                if (currentState[dateStr]) {
+                    currentState[dateStr].entryId = stored.row.id || null;
+                    writeNormalDayState(currentState, false);
+                }
+            }
+            pendingNormalDaySave = null;
+        }, 400);
     }
 
     function syncPaidOffControls() {
@@ -176,6 +508,7 @@
     }
 
     function openEditorForDate(dateStr) {
+        resetNormalDayButton();
         const date = parseInputDate(dateStr);
         if (!date) return;
 
@@ -198,7 +531,38 @@
         fields.applyOt.checked = row ? (row.applyOvertime !== false && row.countOvertime !== false) : true;
         setOverrideFields(row);
         syncPaidOffControls();
+        syncNormalDayButton(dateStr);
         editSheet.setAttribute("aria-hidden", "false");
+    }
+
+    function formMatchesNormalDay(dateStr) {
+        const date = parseInputDate(dateStr);
+        if (!date) return false;
+        const settings = readJson(STORE.SETTINGS, {});
+        const template = Array.isArray(settings.weekTemplate)
+            ? (settings.weekTemplate[date.getDay()] || {})
+            : {};
+        const expectedBreak = readBool(DEDUCT_BREAK_KEY, true)
+            ? clamp(settings.defaultBreak ?? 60, 0, 1440)
+            : 0;
+        return !fields.holiday.checked
+            && !fields.paidOff.checked
+            && !fields.applyOt.checked
+            && fields.useGlobal.checked
+            && fields.start.value === (template.start || "")
+            && fields.end.value === (template.end || "")
+            && Number(fields.breakMin.value) === expectedBreak;
+    }
+
+    function clearChangedNormalDayMarker() {
+        if (fields.normalDay.dataset.saving === "true") return;
+        const openedDate = fields.normalDay.dataset.date;
+        if (!openedDate) return;
+        const state = readNormalDayState();
+        if (!state[openedDate]) return;
+        if (fields.date.value === openedDate && formMatchesNormalDay(openedDate)) return;
+        delete state[openedDate];
+        writeNormalDayState(state, false);
     }
 
     function buildOverridesFromForm() {
@@ -246,7 +610,10 @@
             overrides: buildOverridesFromForm()
         });
 
-        if (!writeHistoricalMove(cleanActive, cleanHistory)) return;
+        if (!writeHistoricalMove(cleanActive, cleanHistory)) {
+            if (pendingNormalDaySave) pendingNormalDaySave.failed = true;
+            return;
+        }
 
         pendingHistoricalEdit = null;
         window.location.reload();
@@ -259,7 +626,13 @@
         window.setTimeout(() => openEditorForDate(dateStr), 0);
     }, true);
 
+    editForm.addEventListener("submit", clearChangedNormalDayMarker, true);
     editForm.addEventListener("submit", saveHistoricalEdit, true);
+    fields.normalDay.addEventListener("click", saveNormalDayFromEditor);
+    fields.date.addEventListener("change", () => {
+        resetNormalDayButton();
+        syncNormalDayButton(fields.date.value);
+    });
     fields.paidOff.addEventListener("change", syncPaidOffControls);
     fields.useGlobal.addEventListener("change", () => {
         fields.overrides.hidden = !!fields.useGlobal.checked;
@@ -268,6 +641,16 @@
     [closeEditBtn, cancelEditBtn].forEach(button => {
         button?.addEventListener("click", () => {
             pendingHistoricalEdit = null;
+            resetNormalDayButton();
         });
     });
+
+    const editSheetObserver = new MutationObserver(() => {
+        if (editSheet.getAttribute("aria-hidden") === "false") {
+            window.setTimeout(() => syncNormalDayButton(fields.date.value), 0);
+        } else {
+            resetNormalDayButton();
+        }
+    });
+    editSheetObserver.observe(editSheet, { attributes: true, attributeFilter: ["aria-hidden"] });
 })();

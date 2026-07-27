@@ -37,7 +37,6 @@ body.app {
     font-size: 16px;
     line-height: 1.45;
     overflow-x: hidden;
-    -webkit-text-size-adjust: 100%;
 }
 
 button,
@@ -60,6 +59,7 @@ button {
     padding: 12px 16px;
     background: rgba(17, 17, 15, .96);
     border-bottom: 1px solid var(--line);
+    -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
 }
 
@@ -111,6 +111,7 @@ button {
 .btn-secondary:active,
 .btn-ghost:active,
 .btn-danger:active,
+.btn-normal-day:active,
 .fab:active,
 .calendar-cell:active {
     transform: scale(var(--tap));
@@ -364,8 +365,8 @@ button {
     color: var(--ink);
     background: var(--surface-2);
     text-align: left;
-    appearance: none;
     -webkit-appearance: none;
+    appearance: none;
 }
 
 .calendar-cell.blank {
@@ -626,6 +627,79 @@ input[type="checkbox"] {
     background: rgba(255, 107, 107, .14);
     border-color: rgba(255, 107, 107, .45);
     color: #ffd7d7;
+}
+
+.btn-normal-day {
+    width: 100%;
+    min-height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+    margin: 0 0 12px;
+    padding: 10px 14px;
+    border: 1px solid #a99cff;
+    border-radius: var(--radius);
+    color: #0b1020;
+    background: linear-gradient(135deg, var(--accent), #a88cff);
+    box-shadow: 0 10px 24px rgba(110, 168, 255, .24);
+    text-align: left;
+    transition: background .18s ease, box-shadow .18s ease;
+}
+
+.normal-day-box {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 auto;
+    display: grid;
+    place-items: center;
+    border: 2px solid #0b1020;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, .16);
+    transition: background .16s ease, transform .16s ease;
+}
+
+.normal-day-check {
+    width: 22px;
+    height: 22px;
+    opacity: 0;
+    transform: scale(.55);
+    transition: opacity .14s ease, transform .16s ease;
+}
+
+.normal-day-copy {
+    display: grid;
+    gap: 2px;
+}
+
+.btn-normal-day strong {
+    font-size: .96rem;
+}
+
+.btn-normal-day small {
+    font-size: .78rem;
+    font-weight: 700;
+    opacity: .76;
+}
+
+.btn-normal-day.is-confirmed {
+    background: linear-gradient(135deg, var(--worked), #79dca0);
+    box-shadow: 0 10px 24px rgba(72, 199, 116, .26);
+}
+
+.btn-normal-day.is-confirmed .normal-day-box {
+    background: #f5f2e8;
+    transform: scale(1.06);
+}
+
+.btn-normal-day.is-confirmed .normal-day-check {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.btn-normal-day:focus-visible {
+    outline: 3px solid rgba(245, 242, 232, .9);
+    outline-offset: 2px;
 }
 
 .btn-ghost.sm,
