@@ -5,6 +5,7 @@ WorkPay is a fast, private work-hours and pay-cycle calculator designed for Sout
 ## What it does
 
 - Tracks normal, overtime, Sunday and public-holiday hours
+- Separates public holidays not worked from holidays worked: a normally scheduled holiday not worked keeps ordinary pay, while holiday work follows the BCEA daily-wage formula
 - Uses different pay defaults for usual Sundays (1.5×) and occasional Sundays (2×)
 - Detects South African public holidays, including Monday observance when a holiday falls on Sunday
 - Checks the visible pay month for common BCEA flags such as 45-hour weeks, overtime, meal intervals, rest time and night work
@@ -33,3 +34,5 @@ Users should download a JSON backup before clearing browser storage or moving to
 The in-app guidance is aligned to general 2026 national rules, including the R30.23 national minimum wage from 1 March 2026 and the R269,900.90 BCEA earnings threshold from 1 May 2026.
 
 WorkPay is an estimator, not payroll or legal advice. Contracts, bargaining councils, sectoral rules, collective agreements and paid-time-off arrangements can change an employee's correct result.
+
+Public holidays are not treated as generic paid-off days. WorkPay records whether the holiday was worked and uses the saved Week Template to determine whether it was ordinarily a workday.

@@ -217,7 +217,14 @@
                         <input type="checkbox" id="qa_holiday" />
                     </label>
                 </div>
-                <label class="control chk full">
+                <div class="holiday-choice" id="qa_holidayChoice" hidden>
+                    <label class="control chk full">
+                        <span class="lab">I worked on this public holiday</span>
+                        <input type="checkbox" id="qa_holidayWorked" />
+                    </label>
+                    <p class="helper" id="qa_holidayHint"></p>
+                </div>
+                <label class="control chk full" id="qa_paidOffControl">
                     <span class="lab">Paid off day</span>
                     <input type="checkbox" id="qa_paidOff" />
                 </label>
@@ -286,7 +293,7 @@
                     <span class="lab">Holiday Multiplier</span>
                     <input type="number" id="s_holMult" min="1" max="10" step="0.1" value="2" />
                 </label>
-                <p class="helper">A Sunday with hours in your Week Template is treated as usual work (normally 1.5×); other Sundays use occasional Sunday pay (normally 2×). Public holidays use their own multiplier.</p>
+                <p class="helper">A Sunday with hours in your Week Template is treated as usual work (normally 1.5×); other Sundays use occasional Sunday pay (normally 2×). The holiday multiplier applies to a normally scheduled public holiday that you worked, with a statutory 2× floor.</p>
             </fieldset>
 
             <fieldset class="group">
@@ -385,7 +392,14 @@
                     <label class="control"><span class="lab">End</span><input type="time" id="ed_end" /></label>
                 </div>
                 <label class="control"><span class="lab">Break (min)</span><input type="number" id="ed_break" min="0" step="5" /></label>
-                <label class="control chk full"><span class="lab">Paid off day</span><input type="checkbox" id="ed_paidOff" /></label>
+                <div class="holiday-choice" id="ed_holidayChoice" hidden>
+                    <label class="control chk full">
+                        <span class="lab">I worked on this public holiday</span>
+                        <input type="checkbox" id="ed_holidayWorked" />
+                    </label>
+                    <p class="helper" id="ed_holidayHint"></p>
+                </div>
+                <label class="control chk full" id="ed_paidOffControl"><span class="lab">Paid off day</span><input type="checkbox" id="ed_paidOff" /></label>
                 <label class="control chk full"><span class="lab">Apply overtime on normal days</span><input type="checkbox" id="ed_applyOt" checked /></label>
             </fieldset>
 
@@ -405,7 +419,7 @@
                         <label class="control"><span class="lab">Sunday Multiplier</span><input type="number" id="ed_sunMul" min="1" step="0.1" /></label>
                         <label class="control"><span class="lab">Holiday Multiplier</span><input type="number" id="ed_holMul" min="1" step="0.1" /></label>
                     </div>
-                    <p class="helper">Overrides still follow the same rule: Sundays and holidays use special pay without extra overtime on top.</p>
+                    <p class="helper">Overrides still follow the same rule: public-holiday pay uses the BCEA daily-wage formula rather than stacking another overtime multiplier.</p>
                 </div>
             </fieldset>
 
@@ -427,7 +441,8 @@
             <div class="help">
                 <ol>
                     <li><strong>Set your Settings</strong>: hourly rate, overtime, Sunday and holiday rules, pay-cycle start day, and your weekly template.</li>
-                    <li><strong>Add a normal day quickly</strong>: tap a calendar date to open Day Details, then use the colored <strong>Save Normal Day</strong> button below Holiday. It turns green and stays checked when you return to that date. Tap it again to cancel the Normal Day and return the button to blue. It uses your normal weekday schedule and current break setting with overtime off. Use the other fields for overtime, Sundays, holidays, paid-off days, or custom hours.</li>
+                    <li><strong>Add a normal day quickly</strong>: tap a calendar date to open Day Details, then use the colored <strong>Save Normal Day</strong> button below Holiday. It turns green and stays checked when you return to that date. Tap it again to cancel the Normal Day and return the button to blue. It uses your normal weekday schedule and current break setting with overtime off. Use the other fields for overtime, Sundays, paid-off days, or custom hours.</li>
+                    <li><strong>Public holidays</strong>: leave “I worked on this public holiday” off when you did not work. If the date is normally in your Week Template, WorkPay keeps one normal day of pay. Turn it on and enter your times only when you worked the holiday.</li>
                     <li><strong>Check the selected day</strong>: after tapping a date, the panel below the calendar shows hours, pay, and the exact rule used.</li>
                     <li><strong>Selected month total</strong>: Basic Salary only counts normal daily hours inside the viewed 21 to 20 payroll month. It excludes overtime and Sunday/holiday multipliers, but includes paid-off days as normal paid hours.</li>
                     <li><strong>Selected cycle total</strong>: Cycle shows the full money for the same 21 to 20 range, including normal pay, overtime, Sunday pay, holiday pay, breaks, paid-off days, and per-day overrides.</li>
@@ -474,8 +489,9 @@
 
     <div class="toast" id="workpayToast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
 
-    <script src="core.js?v=6" defer></script>
-    <script src="direct-date-edit.js?v=6" defer></script>
-    <script src="app.js?v=6" defer></script>
+    <script src="holiday-pay.js?v=7" defer></script>
+    <script src="core.js?v=7" defer></script>
+    <script src="direct-date-edit.js?v=7" defer></script>
+    <script src="app.js?v=7" defer></script>
 </body>
 </html>

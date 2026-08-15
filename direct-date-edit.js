@@ -27,10 +27,14 @@
         id: document.getElementById("ed_id"),
         date: document.getElementById("ed_date"),
         holiday: document.getElementById("ed_holiday"),
+        holidayChoice: document.getElementById("ed_holidayChoice"),
+        holidayWorked: document.getElementById("ed_holidayWorked"),
+        holidayHint: document.getElementById("ed_holidayHint"),
         normalDay: document.getElementById("ed_normalDay"),
         start: document.getElementById("ed_start"),
         end: document.getElementById("ed_end"),
         breakMin: document.getElementById("ed_break"),
+        paidOffControl: document.getElementById("ed_paidOffControl"),
         paidOff: document.getElementById("ed_paidOff"),
         applyOt: document.getElementById("ed_applyOt"),
         useGlobal: document.getElementById("ed_useGlobal"),
@@ -423,11 +427,12 @@
             ? clamp(settings.defaultBreak ?? 60, 0, 1440)
             : 0;
         fields.holiday.checked = false;
+        fields.holidayWorked.checked = false;
         fields.paidOff.checked = false;
         fields.applyOt.checked = false;
         fields.useGlobal.checked = true;
         fields.overrides.hidden = true;
-        syncPaidOffControls();
+        syncSpecialDayControls();
 
         const saved = findSavedRow(dateStr);
         const state = readNormalDayState();
@@ -479,11 +484,45 @@
         }, 400);
     }
 
-    function syncPaidOffControls() {
-        const disabled = !!fields.paidOff.checked;
-        [fields.start, fields.end, fields.breakMin, fields.applyOt].forEach(field => {
-            field.disabled = disabled;
+    function syncSpecialDayControls(prefillWorkedTimes = false) {
+        const holiday = !!fields.holiday.checked || isAutoHoliday(fields.date.value);
+        const holidayWorked = holiday && !!fields.holidayWorked.checked;
+        const settings = readJson(STORE.SETTINGS, {});
+        const date = parseInputDate(fields.date.value);
+        const template = date && Array.isArray(settings.weekTemplate)
+            ? (settings.weekTemplate[date.getDay()] || {})
+            : {};
+        const ordinarilyWorks = /^\d{2}:\d{2}$/.test(template.start || "")
+            && /^\d{2}:\d{2}$/.test(template.end || "");
+
+        fields.holidayChoice.hidden = !holiday;
+        fields.paidOffControl.hidden = holiday;
+        if (holiday) fields.paidOff.checked = false;
+        else fields.holidayWorked.checked = false;
+
+        if (holiday) {
+            if (holidayWorked) {
+                fields.holidayHint.textContent = ordinarilyWorks
+                    ? "Normally scheduled day: WorkPay applies at least double the ordinary daily wage, or the daily wage plus time worked when greater."
+                    : "Not normally scheduled: WorkPay applies an ordinary daily wage plus payment for the time worked.";
+                if (prefillWorkedTimes) {
+                    if (!fields.start.value) fields.start.value = template.start || "";
+                    if (!fields.end.value) fields.end.value = template.end || "";
+                    if (!fields.breakMin.value) fields.breakMin.value = String(settings.defaultBreak || 0);
+                }
+            } else {
+                fields.holidayHint.textContent = ordinarilyWorks
+                    ? "Not worked: this is normally a workday, so one ordinary day of pay is kept."
+                    : "Not worked: this is not in your Week Template, so no extra holiday payment is added.";
+            }
+        }
+
+        const paidOff = !holiday && !!fields.paidOff.checked;
+        const disableWorkFields = paidOff || (holiday && !holidayWorked);
+        [fields.start, fields.end, fields.breakMin].forEach(field => {
+            field.disabled = disableWorkFields;
         });
+        fields.applyOt.disabled = paidOff || holiday;
     }
 
     function setOverrideFields(row) {
@@ -515,13 +554,15 @@
         fields.id.value = row?.id || "";
         fields.date.value = dateStr;
         fields.holiday.checked = row ? (!!row.isHoliday || isAutoHoliday(dateStr)) : isAutoHoliday(dateStr);
-        fields.start.value = row?.start || template.start || "";
-        fields.end.value = row?.end || template.end || "";
+        fields.holidayWorked.checked = row ? !!row.holidayWorked : false;
+        const notWorkedHoliday = fields.holiday.checked && !fields.holidayWorked.checked;
+        fields.start.value = notWorkedHoliday ? "" : (row?.start || template.start || "");
+        fields.end.value = notWorkedHoliday ? "" : (row?.end || template.end || "");
         fields.breakMin.value = row?.breakMin ?? clamp(settings.defaultBreak ?? 60, 0, 1440);
         fields.paidOff.checked = !!row?.paidOff;
         fields.applyOt.checked = row ? (row.applyOvertime !== false && row.countOvertime !== false) : true;
         setOverrideFields(row);
-        syncPaidOffControls();
+        syncSpecialDayControls();
         syncNormalDayButton(dateStr);
         editSheet.setAttribute("aria-hidden", "false");
     }
@@ -587,16 +628,30 @@
             entries: (Array.isArray(cycle.entries) ? cycle.entries : []).filter(row => row.id !== pendingHistoricalEdit.id)
         }));
         const cleanActive = (Array.isArray(active) ? active : []).filter(row => row.id !== pendingHistoricalEdit.id);
+        const holiday = !!fields.holiday.checked || isAutoHoliday(dateStr);
+        const holidayWorked = holiday && !!fields.holidayWorked.checked;
+        const settings = readJson(STORE.SETTINGS, {});
+        const date = parseInputDate(dateStr);
+        const template = date && Array.isArray(settings.weekTemplate)
+            ? (settings.weekTemplate[date.getDay()] || {})
+            : {};
+        const sameDate = dateKey(pendingHistoricalEdit.row.dateISO) === dateStr;
+        const holidayWasOrdinaryWorkday = holiday && sameDate
+            && typeof pendingHistoricalEdit.row.holidayWasOrdinaryWorkday === "boolean"
+            ? pendingHistoricalEdit.row.holidayWasOrdinaryWorkday
+            : holiday && !!template.start && !!template.end;
 
         cleanActive.push({
             ...pendingHistoricalEdit.row,
             id: pendingHistoricalEdit.id,
             dateISO: inputDateToIso(dateStr),
-            start: fields.start.value || "",
-            end: fields.end.value || "",
-            breakMin: clamp(fields.breakMin.value, 0, 1440),
-            isHoliday: !!fields.holiday.checked,
-            paidOff: !!fields.paidOff.checked,
+            start: holiday && !holidayWorked ? "" : (fields.start.value || ""),
+            end: holiday && !holidayWorked ? "" : (fields.end.value || ""),
+            breakMin: holiday && !holidayWorked ? 0 : clamp(fields.breakMin.value, 0, 1440),
+            isHoliday: holiday,
+            holidayWorked,
+            holidayWasOrdinaryWorkday,
+            paidOff: !holiday && !!fields.paidOff.checked,
             applyOvertime: !!fields.applyOt.checked,
             overrides: buildOverridesFromForm()
         });
@@ -624,8 +679,18 @@
     fields.date.addEventListener("change", () => {
         resetNormalDayButton();
         syncNormalDayButton(fields.date.value);
+        if (!fields.id.value || isAutoHoliday(fields.date.value)) {
+            fields.holiday.checked = isAutoHoliday(fields.date.value);
+        }
+        fields.holidayWorked.checked = false;
+        syncSpecialDayControls();
     });
-    fields.paidOff.addEventListener("change", syncPaidOffControls);
+    fields.paidOff.addEventListener("change", syncSpecialDayControls);
+    fields.holiday.addEventListener("change", () => {
+        fields.holidayWorked.checked = false;
+        syncSpecialDayControls();
+    });
+    fields.holidayWorked.addEventListener("change", () => syncSpecialDayControls(true));
     fields.useGlobal.addEventListener("change", () => {
         fields.overrides.hidden = !!fields.useGlobal.checked;
     });

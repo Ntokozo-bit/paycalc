@@ -1047,6 +1047,23 @@ input[type="checkbox"] {
     display: none !important;
 }
 
+.holiday-choice {
+    display: grid;
+    gap: 6px;
+    padding: 12px;
+    border: 1px solid rgba(255, 209, 102, .42);
+    border-radius: var(--radius);
+    background: rgba(255, 209, 102, .07);
+}
+
+.holiday-choice[hidden] {
+    display: none !important;
+}
+
+.holiday-choice .helper {
+    margin: 0;
+}
+
 .file-button {
     cursor: pointer;
     background: var(--surface-2);
