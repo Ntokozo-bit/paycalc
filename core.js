@@ -7,6 +7,8 @@
 (function () {
     "use strict";
 
+    const calculatePublicHolidayPay = window.WorkPayRules?.calculatePublicHolidayPay;
+
     const STORE = {
         SETTINGS: "paycalc_settings_v2",
         ENTRIES: "paycalc_entries_v2",
@@ -71,6 +73,10 @@
         qa_end: document.getElementById("qa_end"),
         qa_break: document.getElementById("qa_break"),
         qa_holiday: document.getElementById("qa_holiday"),
+        qa_holidayChoice: document.getElementById("qa_holidayChoice"),
+        qa_holidayWorked: document.getElementById("qa_holidayWorked"),
+        qa_holidayHint: document.getElementById("qa_holidayHint"),
+        qa_paidOffControl: document.getElementById("qa_paidOffControl"),
         qa_paidOff: document.getElementById("qa_paidOff"),
         qa_applyOt: document.getElementById("qa_applyOt"),
 
@@ -92,6 +98,10 @@
         ed_id: document.getElementById("ed_id"),
         ed_date: document.getElementById("ed_date"),
         ed_holiday: document.getElementById("ed_holiday"),
+        ed_holidayChoice: document.getElementById("ed_holidayChoice"),
+        ed_holidayWorked: document.getElementById("ed_holidayWorked"),
+        ed_holidayHint: document.getElementById("ed_holidayHint"),
+        ed_paidOffControl: document.getElementById("ed_paidOffControl"),
         ed_start: document.getElementById("ed_start"),
         ed_end: document.getElementById("ed_end"),
         ed_break: document.getElementById("ed_break"),
@@ -437,6 +447,13 @@
     function normalizeEntry(row, index) {
         const source = row && typeof row === "object" ? row : {};
         const date = toDate(source.dateISO) || startOfToday();
+        const holiday = !!source.isHoliday || isAutoHoliday(date);
+        const holidayWorked = holiday && (typeof source.holidayWorked === "boolean"
+            ? source.holidayWorked
+            : (!source.paidOff && !!source.start && !!source.end));
+        const holidayWasOrdinaryWorkday = holiday && (typeof source.holidayWasOrdinaryWorkday === "boolean"
+            ? source.holidayWasOrdinaryWorkday
+            : (!!source.paidOff || scheduledHoursForDate(date) > 0));
         const overrides = source.overrides && typeof source.overrides === "object"
             ? { ...source.overrides, useGlobal: source.overrides.useGlobal !== false }
             : { useGlobal: true };
@@ -448,7 +465,9 @@
             end: source.end || "",
             breakMin: clamp(source.breakMin ?? 0, 0, 24 * 60),
             isHoliday: !!source.isHoliday,
-            paidOff: !!source.paidOff,
+            holidayWorked,
+            holidayWasOrdinaryWorkday,
+            paidOff: !holiday && !!source.paidOff,
             applyOvertime: usesOvertime(source),
             sundayWasUsual: typeof source.sundayWasUsual === "boolean" ? source.sundayWasUsual : undefined,
             createdAt: Number.isFinite(+source.createdAt) ? +source.createdAt : date.getTime() + index,
@@ -561,7 +580,8 @@
     function calcRow(row) {
         const sunday = isSunday(row.dateISO);
         const holiday = !!row.isHoliday || isAutoHoliday(row.dateISO);
-        const paidOff = !!row.paidOff;
+        const holidayWorked = holiday && !!row.holidayWorked;
+        const paidOff = !holiday && !!row.paidOff;
         const rates = resolveRates(row);
         const hr = clamp(rates.hourly, 0, 1e9);
         const otTh = clamp(rates.otThreshold, 0, 24);
@@ -580,21 +600,25 @@
             totalMin = Math.max(0, end - sMin - brk);
         }
 
-        const hours = paidOff ? 0 : totalMin / 60;
+        const hours = (paidOff || (holiday && !holidayWorked)) ? 0 : totalMin / 60;
         const scheduledPaidHours = scheduledHoursForDate(row.dateISO);
         const hasConfiguredSchedule = configuredScheduleHours().length > 0;
         const frozenDailyHours = rates.ordinaryDailyHours;
+        const ordinaryDailyHours = frozenDailyHours ?? (scheduledPaidHours || typicalDailyHours(otTh));
+        const holidayOrdinaryWorkday = holiday && (typeof row.holidayWasOrdinaryWorkday === "boolean"
+            ? row.holidayWasOrdinaryWorkday
+            : scheduledPaidHours > 0);
         const paidHours = paidOff
             ? (frozenDailyHours ?? (hasConfiguredSchedule ? scheduledPaidHours : otTh))
-            : 0;
+            : (holiday && !holidayWorked && holidayOrdinaryWorkday ? ordinaryDailyHours : 0);
         const paidOffPay = paidHours * hr;
         const specialType = holiday ? "holiday" : (sunday ? "sunday" : "");
-        const specialMult = specialType === "holiday" ? holMul : (specialType === "sunday" ? sunMul : 1);
+        const specialMult = specialType === "holiday" ? Math.max(2, holMul) : (specialType === "sunday" ? sunMul : 1);
         let normalH = 0;
         let otH = 0;
         let specialH = 0;
 
-        if (paidOff) {
+        if (paidOff || (holiday && !holidayWorked)) {
             normalH = 0;
         } else if (specialType) {
             specialH = hours;
@@ -607,18 +631,23 @@
 
         const normalPay = normalH * hr;
         const otPay = otH * hr * otMul;
-        const ordinaryDailyHours = frozenDailyHours ?? (scheduledPaidHours || typicalDailyHours(otTh));
         const ordinaryDailyPay = ordinaryDailyHours * hr;
         const multipliedSpecialPay = specialH * hr * specialMult;
         let specialPay = multipliedSpecialPay;
+        let holidayRule = "";
         if (specialType === "sunday") {
             specialPay = Math.max(specialPay, ordinaryDailyPay);
         } else if (specialType === "holiday") {
-            specialPay = Math.max(
-                specialPay,
-                ordinaryDailyPay * holMul,
-                ordinaryDailyPay + (specialH * hr)
-            );
+            const result = calculatePublicHolidayPay({
+                hourlyRate: hr,
+                ordinaryDailyHours,
+                workedHours: specialH,
+                ordinarilyWorks: holidayOrdinaryWorkday,
+                worked: holidayWorked,
+                holidayMultiplier: holMul
+            });
+            specialPay = result.amount;
+            holidayRule = result.rule;
         }
 
         return {
@@ -627,10 +656,14 @@
             normalH,
             otH,
             specialH,
-            amount: normalPay + otPay + specialPay + paidOffPay,
+            amount: normalPay + otPay + specialPay + (paidOff ? paidOffPay : 0),
             multiplier: specialMult,
             specialType,
             specialFloorApplied: specialPay > multipliedSpecialPay + 0.005,
+            holidayRule,
+            holidayWorked,
+            holidayOrdinaryWorkday,
+            holidayNotWorkedPaid: holiday && !holidayWorked && holidayOrdinaryWorkday,
             usualSunday: !!rates.usualSunday,
             paidOff,
             usesOvertime: applyOvertime,
@@ -643,7 +676,7 @@
         const calc = calcRow(row);
         const rates = resolveRates(row);
         const hourly = clamp(rates.hourly, 0, 1e9);
-        const basicHours = calc.paidOff
+        const basicHours = (calc.paidOff || calc.holidayNotWorkedPaid)
             ? calc.paidHours
             : Math.min(calc.hours, calc.otThreshold);
 
@@ -792,10 +825,14 @@
         const dayRows = entriesForDate(dateStr, rows);
         let hours = 0;
         let amount = 0;
+        let holidayWorked = false;
+        let holidayNotWorkedPaid = false;
         for (const row of dayRows) {
             const calc = calcRow(row);
             hours += calc.hours;
             amount += calc.amount;
+            holidayWorked ||= calc.specialType === "holiday" && calc.holidayWorked;
+            holidayNotWorkedPaid ||= calc.holidayNotWorkedPaid;
         }
         return {
             rows: dayRows,
@@ -803,6 +840,8 @@
             amount,
             worked: hours > 0,
             paidOff: dayRows.some(row => row.paidOff),
+            holidayWorked,
+            holidayNotWorkedPaid,
             saved: dayRows.length > 0,
             sunday: isSunday(dateStr),
             holiday: isAutoHoliday(dateStr) || dayRows.some(row => row.isHoliday)
@@ -829,7 +868,7 @@
             normalHours += calc.normalH;
             overtimeHours += calc.otH;
             specialHours += calc.specialH;
-            paidOffHours += calc.paidHours;
+            if (calc.paidOff) paidOffHours += calc.paidHours;
             if (calc.specialType === "sunday") sundayHours += calc.specialH;
             if (calc.specialType === "holiday") holidayHours += calc.specialH;
             const key = ymd(row.dateISO);
@@ -990,21 +1029,30 @@
     }
 
     function entryFromValues(values, existing) {
+        const entryDate = dateISO(values.date);
+        const holiday = !!values.isHoliday || isAutoHoliday(entryDate);
+        const holidayWorked = holiday && !!values.holidayWorked;
+        const sameDate = existing && ymd(existing.dateISO) === ymd(entryDate);
+        const holidayWasOrdinaryWorkday = holiday && sameDate && typeof existing.holidayWasOrdinaryWorkday === "boolean"
+            ? existing.holidayWasOrdinaryWorkday
+            : holiday && scheduledHoursForDate(entryDate) > 0;
         return {
             id: existing?.id || cryptoId(),
-            dateISO: dateISO(values.date),
-            start: values.start || "",
-            end: values.end || "",
-            breakMin: clamp(values.breakMin, 0, 24 * 60),
+            dateISO: entryDate,
+            start: holiday && !holidayWorked ? "" : (values.start || ""),
+            end: holiday && !holidayWorked ? "" : (values.end || ""),
+            breakMin: holiday && !holidayWorked ? 0 : clamp(values.breakMin, 0, 24 * 60),
             isHoliday: !!values.isHoliday,
-            paidOff: !!values.paidOff,
+            holidayWorked,
+            holidayWasOrdinaryWorkday,
+            paidOff: !holiday && !!values.paidOff,
             applyOvertime: values.applyOvertime !== false,
             createdAt: existing?.createdAt || nextCreatedAt(),
             overrides: values.overrides || { useGlobal: true }
         };
     }
 
-    function addRow(dateValue, start, end, breakMin, isHoliday, paidOff, applyOvertime, overrides) {
+    function addRow(dateValue, start, end, breakMin, isHoliday, holidayWorked, paidOff, applyOvertime, overrides) {
         const dateStr = ymd(dateValue);
         const existingIndex = entries.findIndex(row => ymd(row.dateISO) === dateStr);
         const existing = existingIndex >= 0 ? entries[existingIndex] : null;
@@ -1014,6 +1062,7 @@
             end,
             breakMin,
             isHoliday,
+            holidayWorked,
             paidOff,
             applyOvertime,
             overrides
@@ -1059,7 +1108,8 @@
                 end: publicHoliday ? "" : (template.end || ""),
                 breakMin: settings.defaultBreak,
                 isHoliday: publicHoliday,
-                paidOff: publicHoliday,
+                holidayWorked: false,
+                paidOff: false,
                 applyOvertime: true,
                 overrides: { useGlobal: true }
             }));
@@ -1101,12 +1151,13 @@
         el.ed_id.value = row.id;
         el.ed_date.value = ymd(row.dateISO);
         el.ed_holiday.checked = !!row.isHoliday || isAutoHoliday(row.dateISO);
+        el.ed_holidayWorked.checked = !!row.holidayWorked;
         el.ed_start.value = row.start || "";
         el.ed_end.value = row.end || "";
         el.ed_break.value = row.breakMin ?? settings.defaultBreak;
         el.ed_paidOff.checked = !!row.paidOff;
         el.ed_applyOt.checked = usesOvertime(row);
-        syncPaidOffControls("edit");
+        syncSpecialDayControls("edit");
         setEditOverrides(row);
         openSheet(el.editSheet);
         render();
@@ -1118,13 +1169,15 @@
         el.editSheetTitle.textContent = "Add Day";
         el.ed_id.value = "";
         el.ed_date.value = ymd(date);
-        el.ed_holiday.checked = isAutoHoliday(date);
-        el.ed_start.value = template.start || "";
-        el.ed_end.value = template.end || "";
+        const holiday = isAutoHoliday(date);
+        el.ed_holiday.checked = holiday;
+        el.ed_holidayWorked.checked = false;
+        el.ed_start.value = holiday ? "" : (template.start || "");
+        el.ed_end.value = holiday ? "" : (template.end || "");
         el.ed_break.value = clamp(settings.defaultBreak ?? 60, 0, 24 * 60);
         el.ed_paidOff.checked = false;
         el.ed_applyOt.checked = true;
-        syncPaidOffControls("edit");
+        syncSpecialDayControls("edit");
         setEditOverrides({ overrides: { useGlobal: true } });
         openSheet(el.editSheet);
     }
@@ -1146,13 +1199,16 @@
             sundayMultiplier: el.ed_sunMul.value ? clamp(el.ed_sunMul.value, 1, 10) : null,
             holidayMultiplier: el.ed_holMul.value ? clamp(el.ed_holMul.value, 1, 10) : null
         };
+        const holiday = !!el.ed_holiday.checked || isAutoHoliday(dateStr);
+        const holidayWorked = holiday && !!el.ed_holidayWorked.checked;
         const row = entryFromValues({
             date: dateStr,
-            start: el.ed_start.value || "",
-            end: el.ed_end.value || "",
-            breakMin: el.ed_break.value,
-            isHoliday: !!el.ed_holiday.checked,
-            paidOff: !!el.ed_paidOff.checked,
+            start: holiday && !holidayWorked ? "" : (el.ed_start.value || ""),
+            end: holiday && !holidayWorked ? "" : (el.ed_end.value || ""),
+            breakMin: holiday && !holidayWorked ? 0 : el.ed_break.value,
+            isHoliday: holiday,
+            holidayWorked,
+            paidOff: !holiday && !!el.ed_paidOff.checked,
             applyOvertime: !!el.ed_applyOt.checked,
             overrides
         }, existing);
@@ -1174,6 +1230,7 @@
 
     function autoTickHoliday(dateStr) {
         el.qa_holiday.checked = !!dateStr && isAutoHoliday(dateStr);
+        el.qa_holidayWorked.checked = false;
     }
 
     function prefillQuickAddForDate(dateStr) {
@@ -1188,17 +1245,60 @@
         if (!dateStr) return;
         el.qa_date.value = dateStr;
         autoTickHoliday(dateStr);
-        if (prefillTimes) prefillQuickAddForDate(dateStr);
+        if (prefillTimes && !el.qa_holiday.checked) prefillQuickAddForDate(dateStr);
+        if (el.qa_holiday.checked) {
+            el.qa_start.value = "";
+            el.qa_end.value = "";
+            el.qa_break.value = "0";
+        }
+        syncSpecialDayControls("quick");
     }
 
-    function syncPaidOffControls(scope) {
-        const paidOff = scope === "edit" ? !!el.ed_paidOff.checked : !!el.qa_paidOff.checked;
+    function syncSpecialDayControls(scope, prefillWorkedTimes = false) {
+        const isEdit = scope === "edit";
+        const dateField = isEdit ? el.ed_date : el.qa_date;
+        const holidayField = isEdit ? el.ed_holiday : el.qa_holiday;
+        const workedField = isEdit ? el.ed_holidayWorked : el.qa_holidayWorked;
+        const choice = isEdit ? el.ed_holidayChoice : el.qa_holidayChoice;
+        const hint = isEdit ? el.ed_holidayHint : el.qa_holidayHint;
+        const paidOffField = isEdit ? el.ed_paidOff : el.qa_paidOff;
+        const paidOffControl = isEdit ? el.ed_paidOffControl : el.qa_paidOffControl;
+        const holiday = !!holidayField.checked || isAutoHoliday(dateField.value);
+        const holidayWorked = holiday && !!workedField.checked;
+
+        choice.hidden = !holiday;
+        paidOffControl.hidden = holiday;
+        if (holiday) paidOffField.checked = false;
+        else workedField.checked = false;
+
+        const date = parseInputDate(dateField.value) || startOfToday();
+        const template = settings.weekTemplate[date.getDay()] || { start: "", end: "" };
+        const ordinarilyWorks = parseTime(template.start) !== null && parseTime(template.end) !== null;
+
+        if (holiday) {
+            if (holidayWorked) {
+                hint.textContent = ordinarilyWorks
+                    ? "Normally scheduled day: WorkPay applies at least double the ordinary daily wage, or the daily wage plus time worked when greater."
+                    : "Not normally scheduled: WorkPay applies an ordinary daily wage plus payment for the time worked.";
+                if (prefillWorkedTimes) {
+                    if (!((isEdit ? el.ed_start : el.qa_start).value)) (isEdit ? el.ed_start : el.qa_start).value = template.start || "";
+                    if (!((isEdit ? el.ed_end : el.qa_end).value)) (isEdit ? el.ed_end : el.qa_end).value = template.end || "";
+                    if (!((isEdit ? el.ed_break : el.qa_break).value)) (isEdit ? el.ed_break : el.qa_break).value = String(settings.defaultBreak || 0);
+                }
+            } else {
+                hint.textContent = ordinarilyWorks
+                    ? "Not worked: this is normally a workday, so one ordinary day of pay is kept."
+                    : "Not worked: this is not in your Week Template, so no extra holiday payment is added.";
+            }
+        }
+
+        const paidOff = !holiday && !!paidOffField.checked;
+        const disableWorkFields = paidOff || (holiday && !holidayWorked);
         const fields = scope === "edit"
             ? [el.ed_start, el.ed_end, el.ed_break, el.ed_applyOt]
             : [el.qa_start, el.qa_end, el.qa_break, el.qa_applyOt];
-        fields.forEach(field => {
-            field.disabled = paidOff;
-        });
+        fields.forEach(field => { field.disabled = disableWorkFields; });
+        (isEdit ? el.ed_applyOt : el.qa_applyOt).disabled = paidOff || holiday;
     }
 
     function setAutoDate() {
@@ -1210,7 +1310,9 @@
         const dateStr = el.qa_date.value || ymd(startOfToday());
         let start = el.qa_start.value;
         let end = el.qa_end.value;
-        if (!start || !end) {
+        const holiday = !!el.qa_holiday.checked || isAutoHoliday(dateStr);
+        const holidayWorked = holiday && !!el.qa_holidayWorked.checked;
+        if ((!start || !end) && (!holiday || holidayWorked)) {
             const date = parseInputDate(dateStr) || startOfToday();
             const template = settings.weekTemplate[date.getDay()] || { start: "", end: "" };
             start = start || template.start || "";
@@ -1221,8 +1323,9 @@
             start,
             end,
             el.qa_break.value || settings.defaultBreak || 0,
-            !!el.qa_holiday.checked,
-            !!el.qa_paidOff.checked,
+            holiday,
+            holidayWorked,
+            !holiday && !!el.qa_paidOff.checked,
             !!el.qa_applyOt.checked,
             { useGlobal: true }
         );
@@ -1233,9 +1336,15 @@
     function buildRateText(calc) {
         if (calc.paidOff) return `Paid off base day (${calc.paidHours.toFixed(2)}h)`;
         if (calc.specialType === "holiday") {
-            return calc.specialFloorApplied
-                ? "Public-holiday daily-wage minimum applied"
-                : `Holiday x${calc.multiplier.toFixed(2)} on all hours`;
+            if (!calc.holidayWorked) {
+                return calc.holidayNotWorkedPaid
+                    ? "Public holiday not worked · normal day pay"
+                    : "Public holiday not worked · not a scheduled day";
+            }
+            if (!calc.holidayOrdinaryWorkday) return "Public holiday worked · daily wage plus time worked";
+            return calc.holidayRule === "ordinary-day-worked-daily-plus-time"
+                ? "Public holiday worked · daily wage plus time worked"
+                : `Public holiday worked · at least ${calc.multiplier.toFixed(2)}× daily wage`;
         }
         if (calc.specialType === "sunday") {
             const base = `${calc.usualSunday ? "Usual" : "Occasional"} Sunday x${calc.multiplier.toFixed(2)}`;
@@ -1248,6 +1357,8 @@
 
     function buildPayDetailText(calc) {
         if (calc.paidOff) return `Paid base ${calc.paidHours.toFixed(2)}h`;
+        if (calc.holidayNotWorkedPaid) return `Paid normal day ${calc.paidHours.toFixed(2)}h · worked 0.00h`;
+        if (calc.specialType === "holiday" && !calc.holidayWorked) return "No scheduled holiday pay";
         if (calc.hours <= 0) return "No hours";
         if (calc.specialH > 0) return `Special ${calc.specialH.toFixed(2)}h`;
         if (calc.otH > 0) return `Normal ${calc.normalH.toFixed(2)}h + OT ${calc.otH.toFixed(2)}h`;
@@ -1306,6 +1417,14 @@
             appendDetailRow(parent, "Pay", money(calc.amount));
             return;
         }
+        if (calc.specialType === "holiday" && !calc.holidayWorked) {
+            appendDetailRow(parent, "Type", "Public holiday · not worked");
+            appendDetailRow(parent, "Normally scheduled", calc.holidayOrdinaryWorkday ? "Yes" : "No");
+            appendDetailRow(parent, "Worked hours", "0.00h");
+            appendDetailRow(parent, "Pay rule", buildRateText(calc));
+            appendDetailRow(parent, "Pay", money(calc.amount));
+            return;
+        }
         appendDetailRow(parent, "Time", `${row.start || "-"} to ${row.end || "-"}`);
         appendDetailRow(parent, "Break", `${row.breakMin ?? 0} min`);
         appendDetailRow(parent, "Hours", `${calc.hours.toFixed(2)}h`);
@@ -1333,11 +1452,14 @@
             year: "numeric"
         })));
         const labels = [];
-        if (summary.worked) labels.push("Worked");
+        if (summary.holiday && summary.holidayWorked) labels.push("Holiday worked");
+        else if (summary.holidayNotWorkedPaid) labels.push("Holiday not worked · normal pay");
+        else if (summary.holiday) labels.push("Holiday not worked");
+        else if (summary.worked) labels.push("Worked");
         else if (summary.paidOff) labels.push("Paid off");
         else labels.push("Not worked");
         if (summary.sunday) labels.push("Sunday");
-        if (summary.holiday) labels.push("Holiday");
+        if (summary.holiday && !labels.some(label => label.startsWith("Holiday"))) labels.push("Holiday");
         titleWrap.appendChild(make("p", "", labels.join(" / ")));
         top.appendChild(titleWrap);
         top.appendChild(make("div", "selected-total", money(summary.amount)));
@@ -1489,6 +1611,11 @@
             node.querySelector(".break").textContent = "Worked 0.00h";
             node.querySelector(".hours").textContent = money(calc.amount);
             node.querySelector(".paid-off").classList.remove("hide");
+        } else if (calc.specialType === "holiday" && !calc.holidayWorked) {
+            node.querySelector(".start").textContent = "Holiday not worked";
+            node.querySelector(".end").textContent = calc.holidayOrdinaryWorkday ? "Normal pay kept" : "Not scheduled";
+            node.querySelector(".break").textContent = "Worked 0.00h";
+            node.querySelector(".hours").textContent = money(calc.amount);
         } else {
             node.querySelector(".start").textContent = `Start ${row.start || "-"}`;
             node.querySelector(".end").textContent = `End ${row.end || "-"}`;
@@ -1544,6 +1671,8 @@
             "End",
             "Break(min)",
             "Holiday",
+            "HolidayStatus",
+            "NormallyScheduledHoliday",
             "PaidOff",
             "AutoOT",
             "NormalHours",
@@ -1566,6 +1695,8 @@
                 row.end || "",
                 row.breakMin ?? 0,
                 (row.isHoliday || isAutoHoliday(row.dateISO)) ? "Yes" : "No",
+                calc.specialType === "holiday" ? (calc.holidayWorked ? "Worked" : "Not worked") : "N/A",
+                calc.specialType === "holiday" ? (calc.holidayOrdinaryWorkday ? "Yes" : "No") : "N/A",
                 row.paidOff ? "Yes" : "No",
                 autoOt,
                 calc.normalH.toFixed(2),
@@ -1611,11 +1742,18 @@
     el.ed_cancel.addEventListener("click", () => closeSheet(el.editSheet));
     el.closeEditBtn.addEventListener("click", () => closeSheet(el.editSheet));
     el.editForm.addEventListener("submit", saveEdit);
-    el.ed_paidOff.addEventListener("change", () => syncPaidOffControls("edit"));
+    el.ed_paidOff.addEventListener("change", () => syncSpecialDayControls("edit"));
+    el.ed_holiday.addEventListener("change", () => {
+        el.ed_holidayWorked.checked = false;
+        syncSpecialDayControls("edit");
+    });
+    el.ed_holidayWorked.addEventListener("change", () => syncSpecialDayControls("edit", true));
     el.ed_date.addEventListener("change", () => {
         if (!el.ed_id.value || isAutoHoliday(el.ed_date.value)) {
             el.ed_holiday.checked = isAutoHoliday(el.ed_date.value);
         }
+        el.ed_holidayWorked.checked = false;
+        syncSpecialDayControls("edit");
     });
 
     el.qa_editDate.addEventListener("click", () => {
@@ -1625,9 +1763,21 @@
     });
     el.qa_date.addEventListener("change", () => {
         autoTickHoliday(el.qa_date.value);
-        prefillQuickAddForDate(el.qa_date.value);
+        if (el.qa_holiday.checked) {
+            el.qa_start.value = "";
+            el.qa_end.value = "";
+            el.qa_break.value = "0";
+        } else {
+            prefillQuickAddForDate(el.qa_date.value);
+        }
+        syncSpecialDayControls("quick");
     });
-    el.qa_paidOff.addEventListener("change", () => syncPaidOffControls("quick"));
+    el.qa_paidOff.addEventListener("change", () => syncSpecialDayControls("quick"));
+    el.qa_holiday.addEventListener("change", () => {
+        el.qa_holidayWorked.checked = false;
+        syncSpecialDayControls("quick");
+    });
+    el.qa_holidayWorked.addEventListener("change", () => syncSpecialDayControls("quick", true));
     el.qa_form.addEventListener("submit", submitQuickAdd);
     el.fabExport.addEventListener("click", exportCsv);
     el.prevMonthBtn.addEventListener("click", () => moveViewedMonth(-1));
@@ -1651,7 +1801,7 @@
         saveHistory();
         el.qa_applyOt.checked = true;
         setAutoDate();
-        syncPaidOffControls("quick");
+        syncSpecialDayControls("quick");
         setViewedMonth(startOfToday());
         render();
     })();

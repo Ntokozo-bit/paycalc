@@ -279,6 +279,8 @@
         if (row.start && parseTime(row.start) === null) return false;
         if (row.end && parseTime(row.end) === null) return false;
         if (row.breakMin !== undefined && !Number.isFinite(Number(row.breakMin))) return false;
+        if (row.holidayWorked !== undefined && typeof row.holidayWorked !== "boolean") return false;
+        if (row.holidayWasOrdinaryWorkday !== undefined && typeof row.holidayWasOrdinaryWorkday !== "boolean") return false;
         return true;
     }
 
@@ -407,7 +409,7 @@
     }
 
     function rowTiming(row) {
-        if (!plainObject(row) || row.paidOff) return null;
+        if (!plainObject(row) || row.paidOff || (row.isHoliday && row.holidayWorked !== true)) return null;
         const key = dateKey(row.dateISO);
         const day = localDateFromKey(key);
         const startMinutes = parseTime(row.start);
@@ -510,7 +512,7 @@
             addCheck(checks, "danger", "A Sunday multiplier is below the usual BCEA money-pay baseline (1.5× usual Sunday, 2× occasional Sunday).", 0);
         }
         if (holidayMultiplier < SA_RULES.publicHolidayMultiplier) {
-            addCheck(checks, "danger", "The public-holiday multiplier is below 2×. Alternative paid-time-off arrangements may need separate handling.", 0);
+            addCheck(checks, "warning", "The saved public-holiday multiplier is below 2×. WorkPay will still enforce the BCEA 2× minimum for a normally scheduled holiday worked.", 1);
         }
 
         const timings = rows.map(rowTiming).filter(Boolean).sort((a, b) => a.start - b.start);
