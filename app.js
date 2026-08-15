@@ -132,20 +132,22 @@
         if (!toggle || !input || !elements.settingsForm) return;
         const control = input.closest("label.control");
 
-        function syncDisplay() {
-            const deduct = readBool(STORE.DEDUCT_BREAK, true);
+        function applyDisplay(deduct) {
             toggle.checked = deduct;
             input.disabled = !deduct;
             control?.classList.toggle("workpay-break-disabled", !deduct);
             if (!deduct) input.value = String(getSavedBreak());
         }
 
+        function syncDisplay() {
+            applyDisplay(readBool(STORE.DEDUCT_BREAK, true));
+        }
+
         toggle.addEventListener("change", () => {
             const deduct = !!toggle.checked;
             if (!deduct) setSavedBreak(input.value);
-            writeBool(STORE.DEDUCT_BREAK, deduct);
             if (deduct) input.value = String(getSavedBreak());
-            syncDisplay();
+            applyDisplay(deduct);
         });
 
         elements.settingsForm.addEventListener("submit", () => {
@@ -622,8 +624,10 @@
     function setupSheetAccessibility() {
         const sheets = [...document.querySelectorAll(".sheet")];
         for (const sheet of sheets) {
+            sheet.inert = sheet.getAttribute("aria-hidden") !== "false";
             const observer = new MutationObserver(() => {
                 const open = sheet.getAttribute("aria-hidden") === "false";
+                sheet.inert = !open;
                 if (open) {
                     lastSheetTrigger = document.activeElement;
                     document.body.classList.add("sheet-open");

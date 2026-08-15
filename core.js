@@ -507,6 +507,21 @@
         return Math.max(0, end - start - clamp(settings.defaultBreak, 0, 24 * 60)) / 60;
     }
 
+    function configuredScheduleHours() {
+        return (Array.isArray(settings.weekTemplate) ? settings.weekTemplate : [])
+            .map((day, index) => {
+                const anchor = new Date(2026, 0, 4 + index);
+                return scheduledHoursForDate(anchor);
+            })
+            .filter(hours => hours > 0);
+    }
+
+    function typicalDailyHours(fallback) {
+        const configured = configuredScheduleHours();
+        if (!configured.length) return fallback;
+        return configured.reduce((sum, hours) => sum + hours, 0) / configured.length;
+    }
+
     function isUsualSunday(value) {
         const date = toDate(value);
         if (!date || date.getDay() !== 0) return false;
@@ -529,12 +544,16 @@
                 otMultiplier: clamp(o.otMultiplier ?? settings.otMultiplier, 1, 10),
                 sundayMultiplier: clamp(o.sundayMultiplier ?? configuredSundayMultiplier, 1, 10),
                 holidayMultiplier: clamp(o.holidayMultiplier ?? settings.holidayMultiplier, 1, 10),
+                ordinaryDailyHours: Number.isFinite(+o.ordinaryDailyHours)
+                    ? clamp(o.ordinaryDailyHours, 0, 24)
+                    : null,
                 usualSunday
             };
         }
         return {
             ...settings,
             sundayMultiplier: clamp(configuredSundayMultiplier, 1, 10),
+            ordinaryDailyHours: null,
             usualSunday
         };
     }
@@ -563,7 +582,11 @@
 
         const hours = paidOff ? 0 : totalMin / 60;
         const scheduledPaidHours = scheduledHoursForDate(row.dateISO);
-        const paidHours = paidOff ? (scheduledPaidHours || otTh) : 0;
+        const hasConfiguredSchedule = configuredScheduleHours().length > 0;
+        const frozenDailyHours = rates.ordinaryDailyHours;
+        const paidHours = paidOff
+            ? (frozenDailyHours ?? (hasConfiguredSchedule ? scheduledPaidHours : otTh))
+            : 0;
         const paidOffPay = paidHours * hr;
         const specialType = holiday ? "holiday" : (sunday ? "sunday" : "");
         const specialMult = specialType === "holiday" ? holMul : (specialType === "sunday" ? sunMul : 1);
@@ -584,7 +607,19 @@
 
         const normalPay = normalH * hr;
         const otPay = otH * hr * otMul;
-        const specialPay = specialH * hr * specialMult;
+        const ordinaryDailyHours = frozenDailyHours ?? (scheduledPaidHours || typicalDailyHours(otTh));
+        const ordinaryDailyPay = ordinaryDailyHours * hr;
+        const multipliedSpecialPay = specialH * hr * specialMult;
+        let specialPay = multipliedSpecialPay;
+        if (specialType === "sunday") {
+            specialPay = Math.max(specialPay, ordinaryDailyPay);
+        } else if (specialType === "holiday") {
+            specialPay = Math.max(
+                specialPay,
+                ordinaryDailyPay * holMul,
+                ordinaryDailyPay + (specialH * hr)
+            );
+        }
 
         return {
             hours,
@@ -595,6 +630,7 @@
             amount: normalPay + otPay + specialPay + paidOffPay,
             multiplier: specialMult,
             specialType,
+            specialFloorApplied: specialPay > multipliedSpecialPay + 0.005,
             usualSunday: !!rates.usualSunday,
             paidOff,
             usesOvertime: applyOvertime,
@@ -859,7 +895,8 @@
                 otThreshold: clamp(rates.otThreshold, 0, 24),
                 otMultiplier: clamp(rates.otMultiplier, 1, 10),
                 sundayMultiplier: clamp(rates.sundayMultiplier, 1, 10),
-                holidayMultiplier: clamp(rates.holidayMultiplier, 1, 10)
+                holidayMultiplier: clamp(rates.holidayMultiplier, 1, 10),
+                ordinaryDailyHours: scheduledHoursForDate(row.dateISO) || typicalDailyHours(rates.otThreshold)
             }
         };
     }
@@ -1195,9 +1232,14 @@
 
     function buildRateText(calc) {
         if (calc.paidOff) return `Paid off base day (${calc.paidHours.toFixed(2)}h)`;
-        if (calc.specialType === "holiday") return `Holiday x${calc.multiplier.toFixed(2)} on all hours`;
+        if (calc.specialType === "holiday") {
+            return calc.specialFloorApplied
+                ? "Public-holiday daily-wage minimum applied"
+                : `Holiday x${calc.multiplier.toFixed(2)} on all hours`;
+        }
         if (calc.specialType === "sunday") {
-            return `${calc.usualSunday ? "Usual" : "Occasional"} Sunday x${calc.multiplier.toFixed(2)} on all hours`;
+            const base = `${calc.usualSunday ? "Usual" : "Occasional"} Sunday x${calc.multiplier.toFixed(2)}`;
+            return calc.specialFloorApplied ? `${base} · daily-wage minimum` : `${base} on all hours`;
         }
         if (calc.otH > 0) return `OT x${calc.otMultiplier.toFixed(2)} after ${calc.otThreshold.toFixed(2)}h`;
         if (!calc.usesOvertime) return "Overtime off";
