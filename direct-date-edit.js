@@ -385,13 +385,8 @@
 
         fields.normalDay.dataset.saving = "true";
         renderNormalDayButton(false, dateStr);
-        if (typeof window.gtag === "function") {
-            window.gtag("event", "normal_day_button_cancelled");
-        }
-        normalDaySaveTimer = window.setTimeout(() => {
-            normalDaySaveTimer = null;
-            window.location.reload();
-        }, 300);
+        editSheet.setAttribute("aria-hidden", "true");
+        document.dispatchEvent(new CustomEvent("workpay:data-changed"));
     }
 
     function saveNormalDayFromEditor() {
@@ -444,10 +439,6 @@
 
         fields.normalDay.dataset.saving = "true";
         renderNormalDayButton(true, dateStr);
-
-        if (typeof window.gtag === "function") {
-            window.gtag("event", "normal_day_button_used");
-        }
 
         normalDaySaveTimer = window.setTimeout(() => {
             normalDaySaveTimer = null;
@@ -616,7 +607,8 @@
         }
 
         pendingHistoricalEdit = null;
-        window.location.reload();
+        editSheet.setAttribute("aria-hidden", "true");
+        document.dispatchEvent(new CustomEvent("workpay:data-changed"));
     }
 
     calendar.addEventListener("click", event => {

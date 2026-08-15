@@ -1,22 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-0KNMG4B9LK"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        gtag("js", new Date());
-        gtag("config", "G-0KNMG4B9LK", {
-            allow_google_signals: false,
-            allow_ad_personalization_signals: false
-        });
-    </script>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="A fast, private South African work-hours and pay-cycle calculator that works offline." />
+    <meta name="theme-color" content="#11110f" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'self'; manifest-src 'self'" />
     <title>WorkPay Calculator</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="styles.css" />
 </head>
 <body class="app">
@@ -38,10 +34,13 @@
         </div>
 
         <div class="head-actions">
-            <button class="icon-btn" id="openHelpBtn" aria-label="Help">
+            <span class="status-pill" id="connectionStatus" data-state="checking" aria-live="polite">
+                <i aria-hidden="true"></i><span>Checking</span>
+            </span>
+            <button class="icon-btn" id="openHelpBtn" type="button" aria-label="Help">
                 <svg class="i" viewBox="0 0 24 24"><path fill="currentColor" d="M11 18h2v-2h-2v2m1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8m-1-5h2c0-3 3-3.25 3-5a4 4 0 1 0-8 0h2a2 2 0 1 1 4 0c0 1.5-3 1.75-3 5Z"/></svg>
             </button>
-            <button class="icon-btn" id="openSettingsBtn" aria-label="Open settings">
+            <button class="icon-btn" id="openSettingsBtn" type="button" aria-label="Open settings">
                 <svg class="i" viewBox="0 0 24 24" aria-hidden="true">
                     <path fill="currentColor" d="M12 8a2 2 0 1 0 .001 4.001A2 2 0 0 0 12 8m8.94 2.34-1.66-.96.02-.2a6.77 6.77 0 0 0-.49-1.16l.96-1.67-1.42-1.42-1.67.96c-.37-.22-.76-.39-1.16-.49l-.2-.02-.96-1.66h-2l-.96 1.66-.2.02c-.4.1-.79.27-1.16.49l-1.67-.96-1.41 1.42.96 1.67c-.22.37-.39.76-.49 1.16l-.02.2-1.66.96v2l1.66.96.02.2c.1.4.27.79.49 1.16l-.96 1.67 1.41 1.41 1.67-.96c.37.22.76.39 1.16.49l.2.02.96 1.66h2l.96-1.66.2-.02c.4-.1.79-.27 1.16-.49l1.67.96 1.42-1.41-.96-1.67c.22-.37.39-.76.49-1.16l.02-.2 1.66-.96v-2Z"/>
                 </svg>
@@ -79,6 +78,21 @@
                 <span id="cycleProgressText">0% complete</span>
                 <div class="progress-track"><span id="cycleProgressBar"></span></div>
             </div>
+        </section>
+
+        <section class="panel sa-check-panel" aria-labelledby="saCheckTitle">
+            <div class="section-head sa-check-head">
+                <div>
+                    <span class="eyebrow">South Africa · 2026 rules</span>
+                    <h2 id="saCheckTitle">Pay & hour check</h2>
+                    <p>Quick flags for the pay month on screen.</p>
+                </div>
+                <span class="check-badge" id="saCheckBadge">Checking</span>
+            </div>
+            <ul class="check-list" id="saCheckList" aria-live="polite">
+                <li>Checking saved workdays…</li>
+            </ul>
+            <p class="legal-note">Guidance only. Contracts, bargaining councils, sector rules and written agreements can change the result.</p>
         </section>
 
         <section class="panel calendar-panel">
@@ -228,14 +242,14 @@
             <div class="entry-list" id="entryList"></div>
         </section>
 
-        <button id="fabExport" class="fab" aria-label="Download CSV">
+        <button id="fabExport" class="fab" type="button" aria-label="Download CSV">
             <svg class="i" viewBox="0 0 24 24"><path fill="currentColor" d="M5 20h14v-2H5m14-9h-4V3H9v6H5l7 7 7-7Z"/></svg>
         </button>
     </main>
 
-    <aside id="settingsSheet" class="sheet" aria-hidden="true" tabindex="-1">
+    <aside id="settingsSheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" aria-hidden="true" tabindex="-1">
         <div class="sheet-head">
-            <h2>Settings</h2>
+            <h2 id="settingsTitle">Settings</h2>
             <button id="closeSettingsBtn" class="icon-btn" aria-label="Close settings">
                 <svg class="i" viewBox="0 0 24 24"><path fill="currentColor" d="M18.3 5.71 12 12l6.3 6.29-1.42 1.42L10.59 13.4 4.3 19.71 2.89 18.3 9.17 12 2.89 5.71 4.3 4.29 10.6 10.6l6.29-6.3z"/></svg>
             </button>
@@ -251,7 +265,7 @@
                 <div class="row two">
                     <label class="control">
                         <span class="lab">OT Starts After (hours/day)</span>
-                        <input type="number" id="s_otThreshold" min="0" step="0.25" value="8" required />
+                        <input type="number" id="s_otThreshold" min="0" max="24" step="0.25" value="9" required />
                     </label>
                     <label class="control">
                         <span class="lab">OT Multiplier</span>
@@ -260,15 +274,19 @@
                 </div>
                 <div class="row two">
                     <label class="control">
-                        <span class="lab">Sunday Multiplier</span>
-                        <input type="number" id="s_sunMult" min="1" step="0.1" value="2" />
+                        <span class="lab">Usual Sunday Multiplier</span>
+                        <input type="number" id="s_sunRegularMult" min="1" max="10" step="0.1" value="1.5" />
                     </label>
                     <label class="control">
-                        <span class="lab">Holiday Multiplier</span>
-                        <input type="number" id="s_holMult" min="1" step="0.1" value="2" />
+                        <span class="lab">Occasional Sunday Multiplier</span>
+                        <input type="number" id="s_sunMult" min="1" max="10" step="0.1" value="2" />
                     </label>
                 </div>
-                <p class="helper">Sundays and holidays use their multiplier for all worked hours. Overtime is only used on normal days.</p>
+                <label class="control">
+                    <span class="lab">Holiday Multiplier</span>
+                    <input type="number" id="s_holMult" min="1" max="10" step="0.1" value="2" />
+                </label>
+                <p class="helper">A Sunday with hours in your Week Template is treated as usual work (normally 1.5×); other Sundays use occasional Sunday pay (normally 2×). Public holidays use their own multiplier.</p>
             </fieldset>
 
             <fieldset class="group">
@@ -287,6 +305,16 @@
                     <span class="lab">Default Break (minutes)</span>
                     <input type="number" id="s_defaultBreak" min="0" step="5" value="60" />
                 </label>
+                <label class="control chk full">
+                    <span class="lab">Deduct meal break by default</span>
+                    <input type="checkbox" id="s_deductBreak" checked />
+                </label>
+                <p class="helper workpay-break-helper">Turn this off if a written arrangement means no meal break is deducted. Existing days are not changed.</p>
+                <label class="control">
+                    <span class="lab">Annual Earnings (optional)</span>
+                    <input type="number" id="s_annualEarnings" min="0" step="100" inputmode="decimal" placeholder="Used only for BCEA guidance" />
+                </label>
+                <p class="helper">From 1 May 2026, some BCEA working-time protections do not automatically apply above R269,900.90 per year.</p>
             </fieldset>
 
             <fieldset class="group">
@@ -310,6 +338,17 @@
                 </div>
             </fieldset>
 
+            <fieldset class="group">
+                <legend>Data & Device</legend>
+                <p class="helper">Your pay data stays on this device. Make a backup before clearing browser data or changing phones.</p>
+                <div class="data-actions">
+                    <button class="btn-secondary" type="button" id="backupDataBtn">Download Backup</button>
+                    <label class="btn-secondary file-button" for="restoreDataInput">Restore Backup</label>
+                    <input class="sr-only" type="file" id="restoreDataInput" accept="application/json,.json" />
+                    <button class="btn-secondary" type="button" id="installAppBtn" hidden>Install WorkPay</button>
+                </div>
+            </fieldset>
+
             <div class="sheet-actions">
                 <button class="btn-secondary" type="button" id="autoFillCycleBtn">Auto-Fill Current Cycle</button>
                 <button class="btn-primary" type="submit" id="saveSettingsBtn">
@@ -320,7 +359,7 @@
         </form>
     </aside>
 
-    <aside id="editSheet" class="sheet" aria-hidden="true" tabindex="-1">
+    <aside id="editSheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="editSheetTitle" aria-hidden="true" tabindex="-1">
         <div class="sheet-head">
             <h2 id="editSheetTitle">Edit Day</h2>
             <button id="closeEditBtn" class="icon-btn" aria-label="Close edit">
@@ -377,9 +416,9 @@
         </form>
     </aside>
 
-    <aside id="helpSheet" class="sheet" aria-hidden="true" tabindex="-1">
+    <aside id="helpSheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="helpTitle" aria-hidden="true" tabindex="-1">
         <div class="sheet-head">
-            <h2>How to use</h2>
+            <h2 id="helpTitle">How to use</h2>
             <button id="closeHelpBtn" class="icon-btn" aria-label="Close help">
                 <svg class="i" viewBox="0 0 24 24"><path fill="currentColor" d="M18.3 5.71 12 12l6.3 6.29-1.42 1.42L10.59 13.4 4.3 19.71 2.89 18.3 9.17 12 2.89 5.71 4.3 4.29 10.6 10.6l6.29-6.3z"/></svg>
             </button>
@@ -387,17 +426,19 @@
         <div class="sheet-body">
             <div class="help">
                 <ol>
-                    <li><strong>Set your Settings</strong>: hourly rate, overtime, Sunday and holiday multipliers, pay-cycle start day, and your weekly template.</li>
+                    <li><strong>Set your Settings</strong>: hourly rate, overtime, Sunday and holiday rules, pay-cycle start day, and your weekly template.</li>
                     <li><strong>Add a normal day quickly</strong>: tap a calendar date to open Day Details, then use the colored <strong>Save Normal Day</strong> button below Holiday. It turns green and stays checked when you return to that date. Tap it again to cancel the Normal Day and return the button to blue. It uses your normal weekday schedule and current break setting with overtime off. Use the other fields for overtime, Sundays, holidays, paid-off days, or custom hours.</li>
                     <li><strong>Check the selected day</strong>: after tapping a date, the panel below the calendar shows hours, pay, and the exact rule used.</li>
                     <li><strong>Selected month total</strong>: Basic Salary only counts normal daily hours inside the viewed 21 to 20 payroll month. It excludes overtime and Sunday/holiday multipliers, but includes paid-off days as normal paid hours.</li>
                     <li><strong>Selected cycle total</strong>: Cycle shows the full money for the same 21 to 20 range, including normal pay, overtime, Sunday pay, holiday pay, breaks, paid-off days, and per-day overrides.</li>
                     <li><strong>Review pay month days</strong>: every saved day in the viewed payroll month appears below with time, break, hours, pay, and special-day labels.</li>
                     <li><strong>All Time Summary</strong>: the summary section totals every saved entry across current and historical data. It is separate from the selected month and selected cycle totals.</li>
-                    <li><strong>Past pay months</strong>: use Prev Month, Next Month, or the month picker to review older 21 to 20 payroll months. Older payroll dates are view-only, but their details and totals remain available.</li>
+                    <li><strong>Past pay months</strong>: use Prev Month, Next Month, or the month picker to review or correct older 21 to 20 payroll months. Changes update totals without a full-page reload.</li>
                     <li><strong>Download CSV</strong>: the round download button exports current and historical entries for Excel or Sheets.</li>
+                    <li><strong>Keep a backup</strong>: Settings → Data & Device creates a restorable JSON backup. CSV files are for reports and cannot restore the app.</li>
+                    <li><strong>Install it</strong>: once your browser offers installation, WorkPay opens like an app and continues working without a connection.</li>
                 </ol>
-                <p class="note">Data is stored in this browser only. Public holidays are detected locally for South Africa, and you can still mark any date as a holiday yourself.</p>
+                <p class="note">Data is stored in this browser only. Public holidays are detected locally for South Africa, and you can still mark any date as a holiday yourself. The SA check is practical guidance, not legal or payroll advice.</p>
             </div>
         </div>
     </aside>
@@ -431,7 +472,10 @@
         </article>
     </template>
 
-    <script src="app.js?v=5" defer></script>
-    <script src="analytics.js" defer></script>
+    <div class="toast" id="workpayToast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+
+    <script src="core.js?v=6" defer></script>
+    <script src="direct-date-edit.js?v=6" defer></script>
+    <script src="app.js?v=6" defer></script>
 </body>
 </html>
