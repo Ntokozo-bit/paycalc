@@ -12,6 +12,7 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'self'; manifest-src 'self'" />
     <title>WorkPay Calculator</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icon-192.png" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="stylesheet" href="styles.css" />
 </head>
@@ -85,7 +86,7 @@
                 <div>
                     <span class="eyebrow">South Africa · 2026 rules</span>
                     <h2 id="saCheckTitle">Pay & hour check</h2>
-                    <p>Quick flags for the pay month on screen.</p>
+                    <p>Quick flags using the latest national rules checked in August 2026.</p>
                 </div>
                 <span class="check-badge" id="saCheckBadge">Checking</span>
             </div>
@@ -197,7 +198,7 @@
                     </label>
                     <button class="btn-ghost sm" type="button" id="qa_editDate">Change</button>
                 </div>
-                <div class="row two">
+                <div class="row two" id="qa_workTimeFields">
                     <label class="control">
                         <span class="lab">Start</span>
                         <input type="time" id="qa_start" />
@@ -208,7 +209,7 @@
                     </label>
                 </div>
                 <div class="row two">
-                    <label class="control">
+                    <label class="control" id="qa_breakControl">
                         <span class="lab">Break (min)</span>
                         <input type="number" id="qa_break" inputmode="numeric" min="0" step="5" />
                     </label>
@@ -219,7 +220,7 @@
                 </div>
                 <div class="holiday-choice" id="qa_holidayChoice" hidden>
                     <label class="control chk full">
-                        <span class="lab">I worked on this public holiday</span>
+                        <span class="lab">I worked this public holiday</span>
                         <input type="checkbox" id="qa_holidayWorked" />
                     </label>
                     <p class="helper" id="qa_holidayHint"></p>
@@ -228,7 +229,7 @@
                     <span class="lab">Paid off day</span>
                     <input type="checkbox" id="qa_paidOff" />
                 </label>
-                <label class="control chk full">
+                <label class="control chk full" id="qa_applyOtControl">
                     <span class="lab">Apply overtime on normal days</span>
                     <input type="checkbox" id="qa_applyOt" checked />
                 </label>
@@ -271,7 +272,7 @@
                 </label>
                 <div class="row two">
                     <label class="control">
-                        <span class="lab">OT Starts After (hours/day)</span>
+                        <span class="lab">Normal Paid Hours / OT Starts After</span>
                         <input type="number" id="s_otThreshold" min="0" max="24" step="0.25" value="9" required />
                     </label>
                     <label class="control">
@@ -293,7 +294,8 @@
                     <span class="lab">Holiday Multiplier</span>
                     <input type="number" id="s_holMult" min="1" max="10" step="0.1" value="2" />
                 </label>
-                <p class="helper">A Sunday with hours in your Week Template is treated as usual work (normally 1.5×); other Sundays use occasional Sunday pay (normally 2×). The holiday multiplier applies to a normally scheduled public holiday that you worked, with a statutory 2× floor.</p>
+                <p class="helper">Normal Paid Hours sets both the daily overtime point and the ordinary paid hours used for a scheduled public holiday. Normal-day overtime is usually 1.5×; it is never stacked onto public-holiday pay.</p>
+                <p class="helper">A Sunday in your Week Template is treated as usual work (normally 1.5×); other Sundays normally use 2×. Public-holiday work uses the BCEA daily-wage formula with a 2× minimum.</p>
             </fieldset>
 
             <fieldset class="group">
@@ -387,20 +389,22 @@
                     </span>
                     <span class="normal-day-copy"><strong>Save Normal Day</strong><small>No overtime · uses your normal weekday schedule</small></span>
                 </button>
-                <div class="row two">
-                    <label class="control"><span class="lab">Start</span><input type="time" id="ed_start" /></label>
-                    <label class="control"><span class="lab">End</span><input type="time" id="ed_end" /></label>
-                </div>
-                <label class="control"><span class="lab">Break (min)</span><input type="number" id="ed_break" min="0" step="5" /></label>
                 <div class="holiday-choice" id="ed_holidayChoice" hidden>
                     <label class="control chk full">
-                        <span class="lab">I worked on this public holiday</span>
+                        <span class="lab">I worked this public holiday</span>
                         <input type="checkbox" id="ed_holidayWorked" />
                     </label>
                     <p class="helper" id="ed_holidayHint"></p>
                 </div>
+                <div id="ed_workTimeFields">
+                    <div class="row two">
+                        <label class="control"><span class="lab">Start</span><input type="time" id="ed_start" /></label>
+                        <label class="control"><span class="lab">Finish</span><input type="time" id="ed_end" /></label>
+                    </div>
+                    <label class="control"><span class="lab">Break (min)</span><input type="number" id="ed_break" min="0" step="5" /></label>
+                </div>
                 <label class="control chk full" id="ed_paidOffControl"><span class="lab">Paid off day</span><input type="checkbox" id="ed_paidOff" /></label>
-                <label class="control chk full"><span class="lab">Apply overtime on normal days</span><input type="checkbox" id="ed_applyOt" checked /></label>
+                <label class="control chk full" id="ed_applyOtControl"><span class="lab">Apply overtime on normal days</span><input type="checkbox" id="ed_applyOt" checked /></label>
             </fieldset>
 
             <fieldset class="group">
@@ -419,7 +423,7 @@
                         <label class="control"><span class="lab">Sunday Multiplier</span><input type="number" id="ed_sunMul" min="1" step="0.1" /></label>
                         <label class="control"><span class="lab">Holiday Multiplier</span><input type="number" id="ed_holMul" min="1" step="0.1" /></label>
                     </div>
-                    <p class="helper">Overrides still follow the same rule: public-holiday pay uses the BCEA daily-wage formula rather than stacking another overtime multiplier.</p>
+                    <p class="helper">Public holidays use the hourly rate and holiday multiplier here, but do not stack the normal-day 1.5× overtime multiplier.</p>
                 </div>
             </fieldset>
 
@@ -439,21 +443,33 @@
         </div>
         <div class="sheet-body">
             <div class="help">
-                <ol>
-                    <li><strong>Set your Settings</strong>: hourly rate, overtime, Sunday and holiday rules, pay-cycle start day, and your weekly template.</li>
-                    <li><strong>Add a normal day quickly</strong>: tap a calendar date to open Day Details, then use the colored <strong>Save Normal Day</strong> button below Holiday. It turns green and stays checked when you return to that date. Tap it again to cancel the Normal Day and return the button to blue. It uses your normal weekday schedule and current break setting with overtime off. Use the other fields for overtime, Sundays, paid-off days, or custom hours.</li>
-                    <li><strong>Public holidays</strong>: leave “I worked on this public holiday” off when you did not work. If the date is normally in your Week Template, WorkPay keeps one normal day of pay. Turn it on and enter your times only when you worked the holiday.</li>
-                    <li><strong>Check the selected day</strong>: after tapping a date, the panel below the calendar shows hours, pay, and the exact rule used.</li>
-                    <li><strong>Selected month total</strong>: Basic Salary only counts normal daily hours inside the viewed 21 to 20 payroll month. It excludes overtime and Sunday/holiday multipliers, but includes paid-off days as normal paid hours.</li>
-                    <li><strong>Selected cycle total</strong>: Cycle shows the full money for the same 21 to 20 range, including normal pay, overtime, Sunday pay, holiday pay, breaks, paid-off days, and per-day overrides.</li>
-                    <li><strong>Review pay month days</strong>: every saved day in the viewed payroll month appears below with time, break, hours, pay, and special-day labels.</li>
-                    <li><strong>All Time Summary</strong>: the summary section totals every saved entry across current and historical data. It is separate from the selected month and selected cycle totals.</li>
-                    <li><strong>Past pay months</strong>: use Prev Month, Next Month, or the month picker to review or correct older 21 to 20 payroll months. Changes update totals without a full-page reload.</li>
-                    <li><strong>Download CSV</strong>: the round download button exports current and historical entries for Excel or Sheets.</li>
-                    <li><strong>Keep a backup</strong>: Settings → Data & Device creates a restorable JSON backup. CSV files are for reports and cannot restore the app.</li>
-                    <li><strong>Install it</strong>: once your browser offers installation, WorkPay opens like an app and continues working without a connection.</li>
-                </ol>
-                <p class="note">Data is stored in this browser only. Public holidays are detected locally for South Africa, and you can still mark any date as a holiday yourself. The SA check is practical guidance, not legal or payroll advice.</p>
+                <section class="help-start" aria-labelledby="helpStartTitle">
+                    <span class="eyebrow">Start here</span>
+                    <h3 id="helpStartTitle">Three steps, then you are ready</h3>
+                    <ol class="help-steps">
+                        <li><strong>Set your pay.</strong><span>Open Settings, add your hourly rate, Normal Paid Hours, pay-cycle start day, and Week Template.</span></li>
+                        <li><strong>Add or check a day.</strong><span>Tap its calendar date. For a normal shift, use Save Normal Day. For different hours, enter the real start, finish, and break.</span></li>
+                        <li><strong>Read the result.</strong><span>The selected-day card shows the hours, pay, and rule. Cycle is the full estimate; Basic Salary excludes premium pay.</span></li>
+                    </ol>
+                </section>
+
+                <section class="help-topic">
+                    <h3>Public holidays</h3>
+                    <p>WorkPay detects South African public holidays automatically. If the holiday is normally a workday, it is saved with your Normal Paid Hours even when you do not work.</p>
+                    <p>Only turn on <strong>I worked this public holiday</strong> when you actually worked, then enter your start, finish, and break. Holiday work uses the BCEA daily-wage formula and does not add normal 1.5× overtime.</p>
+                </section>
+
+                <section class="help-topic">
+                    <h3>Correct old data</h3>
+                    <p>Use Prev Month, Next Month, or the month box. Tap an old saved day—or its Edit button—change the details, and save. The totals update immediately.</p>
+                </section>
+
+                <section class="help-topic">
+                    <h3>Keep your data safe</h3>
+                    <p>Settings → Data & Device lets you download a restorable backup and install WorkPay. The app works offline after its first successful load. CSV is for Excel or Sheets; it is not a backup.</p>
+                </section>
+
+                <p class="note">Your data stays in this browser. Automatically detected holidays cover the statutory calendar and Sunday-to-Monday observance; manually declared one-off holidays can still be marked. Contracts, bargaining councils and sector rules may provide better terms.</p>
             </div>
         </div>
     </aside>
@@ -489,9 +505,9 @@
 
     <div class="toast" id="workpayToast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
 
-    <script src="holiday-pay.js?v=7" defer></script>
-    <script src="core.js?v=7" defer></script>
-    <script src="direct-date-edit.js?v=7" defer></script>
-    <script src="app.js?v=7" defer></script>
+    <script src="holiday-pay.js?v=8" defer></script>
+    <script src="core.js?v=8" defer></script>
+    <script src="direct-date-edit.js?v=8" defer></script>
+    <script src="app.js?v=8" defer></script>
 </body>
 </html>

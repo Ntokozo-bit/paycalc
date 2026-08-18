@@ -31,11 +31,13 @@
         holidayWorked: document.getElementById("ed_holidayWorked"),
         holidayHint: document.getElementById("ed_holidayHint"),
         normalDay: document.getElementById("ed_normalDay"),
+        workTimeFields: document.getElementById("ed_workTimeFields"),
         start: document.getElementById("ed_start"),
         end: document.getElementById("ed_end"),
         breakMin: document.getElementById("ed_break"),
         paidOffControl: document.getElementById("ed_paidOffControl"),
         paidOff: document.getElementById("ed_paidOff"),
+        applyOtControl: document.getElementById("ed_applyOtControl"),
         applyOt: document.getElementById("ed_applyOt"),
         useGlobal: document.getElementById("ed_useGlobal"),
         overrides: document.getElementById("ed_overrides"),
@@ -485,7 +487,8 @@
     }
 
     function syncSpecialDayControls(prefillWorkedTimes = false) {
-        const holiday = !!fields.holiday.checked || isAutoHoliday(fields.date.value);
+        const automaticHoliday = isAutoHoliday(fields.date.value);
+        const holiday = !!fields.holiday.checked || automaticHoliday;
         const holidayWorked = holiday && !!fields.holidayWorked.checked;
         const settings = readJson(STORE.SETTINGS, {});
         const date = parseInputDate(fields.date.value);
@@ -494,17 +497,21 @@
             : {};
         const ordinarilyWorks = /^\d{2}:\d{2}$/.test(template.start || "")
             && /^\d{2}:\d{2}$/.test(template.end || "");
+        const normalPaidHours = clamp(settings.otThreshold ?? 9, 0, 24);
 
+        fields.holiday.checked = holiday;
+        fields.holiday.disabled = automaticHoliday;
         fields.holidayChoice.hidden = !holiday;
         fields.paidOffControl.hidden = holiday;
+        fields.normalDay.hidden = holiday || date?.getDay() === 0;
         if (holiday) fields.paidOff.checked = false;
         else fields.holidayWorked.checked = false;
 
         if (holiday) {
             if (holidayWorked) {
                 fields.holidayHint.textContent = ordinarilyWorks
-                    ? "Normally scheduled day: WorkPay applies at least double the ordinary daily wage, or the daily wage plus time worked when greater."
-                    : "Not normally scheduled: WorkPay applies an ordinary daily wage plus payment for the time worked.";
+                    ? `Worked: at least a double ${normalPaidHours.toFixed(2)}h day, or ${normalPaidHours.toFixed(2)}h plus your actual worked hours when that is greater. Normal 1.5× OT is not added.`
+                    : `Worked on a non-scheduled day: ${normalPaidHours.toFixed(2)}h ordinary daily pay plus your actual worked hours. Normal 1.5× OT is not added.`;
                 if (prefillWorkedTimes) {
                     if (!fields.start.value) fields.start.value = template.start || "";
                     if (!fields.end.value) fields.end.value = template.end || "";
@@ -512,8 +519,8 @@
                 }
             } else {
                 fields.holidayHint.textContent = ordinarilyWorks
-                    ? "Not worked: this is normally a workday, so one ordinary day of pay is kept."
-                    : "Not worked: this is not in your Week Template, so no extra holiday payment is added.";
+                    ? `Not worked: WorkPay automatically keeps ${normalPaidHours.toFixed(2)} normal paid hours.`
+                    : "Not worked: this is not in your Week Template, so no holiday payment is added.";
             }
         }
 
@@ -522,7 +529,10 @@
         [fields.start, fields.end, fields.breakMin].forEach(field => {
             field.disabled = disableWorkFields;
         });
+        fields.workTimeFields.hidden = disableWorkFields;
+        fields.applyOtControl.hidden = paidOff || holiday;
         fields.applyOt.disabled = paidOff || holiday;
+        if (holiday) fields.applyOt.checked = false;
     }
 
     function setOverrideFields(row) {
@@ -672,6 +682,11 @@
         const dateStr = cell.dataset.date;
         window.setTimeout(() => openEditorForDate(dateStr), 0);
     }, true);
+
+    document.addEventListener("workpay:edit-date", event => {
+        const dateStr = event.detail?.date;
+        if (parseInputDate(dateStr)) openEditorForDate(dateStr);
+    });
 
     editForm.addEventListener("submit", clearChangedNormalDayMarker, true);
     editForm.addEventListener("submit", saveHistoricalEdit, true);

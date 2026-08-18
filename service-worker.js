@@ -1,4 +1,4 @@
-const CACHE_NAME = "workpay-v7";
+const CACHE_NAME = "workpay-v8";
 const APP_SHELL = [
     "./",
     "./index.html",
