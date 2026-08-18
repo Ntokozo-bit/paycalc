@@ -771,6 +771,15 @@ input[type="checkbox"] {
     transition: background .18s ease, box-shadow .18s ease;
 }
 
+.btn-normal-day[hidden],
+#ed_workTimeFields[hidden],
+#qa_workTimeFields[hidden],
+#qa_breakControl[hidden],
+#qa_applyOtControl[hidden],
+#ed_applyOtControl[hidden] {
+    display: none !important;
+}
+
 .normal-day-box {
     width: 28px;
     height: 28px;
@@ -1101,13 +1110,68 @@ input[type="checkbox"] {
     display: none;
 }
 
-.help ol {
-    margin: 0 0 14px;
-    padding-left: 22px;
+.help {
+    display: grid;
+    gap: 12px;
 }
 
-.help li + li {
-    margin-top: 8px;
+.help h3,
+.help p {
+    margin: 0;
+}
+
+.help-start,
+.help-topic {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface-2);
+}
+
+.help-start {
+    border-color: rgba(77, 163, 255, .42);
+    background: linear-gradient(145deg, rgba(77, 163, 255, .11), rgba(97, 211, 148, .06));
+}
+
+.help-steps {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: workpay-step;
+}
+
+.help-steps li {
+    position: relative;
+    display: grid;
+    gap: 3px;
+    min-height: 34px;
+    padding-left: 42px;
+    counter-increment: workpay-step;
+}
+
+.help-steps li::before {
+    content: counter(workpay-step);
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    color: #07160d;
+    border-radius: 9px;
+    background: var(--worked);
+    font-weight: 900;
+}
+
+.help-steps span,
+.help-topic p {
+    color: var(--muted);
+    line-height: 1.45;
 }
 
 @media (min-width: 780px) {

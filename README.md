@@ -7,7 +7,9 @@ WorkPay is a fast, private work-hours and pay-cycle calculator designed for Sout
 - Tracks normal, overtime, Sunday and public-holiday hours
 - Separates public holidays not worked from holidays worked: a normally scheduled holiday not worked keeps ordinary pay, while holiday work follows the BCEA daily-wage formula
 - Uses different pay defaults for usual Sundays (1.5×) and occasional Sundays (2×)
-- Detects South African public holidays, including Monday observance when a holiday falls on Sunday
+- Detects and saves South African public holidays automatically, including Monday observance when a holiday falls on Sunday; scheduled holidays receive the normal paid-day base
+- Uses Normal Paid Hours / OT Starts After as the ordinary paid day for scheduled holiday calculations
+- Lets users edit saved days in current and completed pay cycles
 - Checks the visible pay month for common BCEA flags such as 45-hour weeks, overtime, meal intervals, rest time and night work
 - Preserves custom days when auto-filling a pay cycle
 - Exports CSV reports and restorable JSON backups
@@ -31,8 +33,8 @@ Users should download a JSON backup before clearing browser storage or moving to
 
 ## South African rules
 
-The in-app guidance is aligned to general 2026 national rules, including the R30.23 national minimum wage from 1 March 2026 and the R269,900.90 BCEA earnings threshold from 1 May 2026.
+The in-app guidance is aligned to general 2026 national rules, including the R30.23 national minimum wage from 1 March 2026 and the R269,600.90 BCEA earnings threshold from 1 May 2026.
 
 WorkPay is an estimator, not payroll or legal advice. Contracts, bargaining councils, sectoral rules, collective agreements and paid-time-off arrangements can change an employee's correct result.
 
-Public holidays are not treated as generic paid-off days. WorkPay records whether the holiday was worked and uses the saved Week Template to determine whether it was ordinarily a workday.
+Public holidays are not treated as generic paid-off days. WorkPay records whether the holiday was worked, uses the Week Template to determine whether it was ordinarily a workday, and uses Normal Paid Hours for the ordinary daily wage. Work on a scheduled public holiday pays the greater of double the ordinary daily wage or the ordinary daily wage plus pay for the actual time worked; normal 1.5× overtime is not stacked on top.

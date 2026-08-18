@@ -72,12 +72,15 @@
         qa_start: document.getElementById("qa_start"),
         qa_end: document.getElementById("qa_end"),
         qa_break: document.getElementById("qa_break"),
+        qa_workTimeFields: document.getElementById("qa_workTimeFields"),
+        qa_breakControl: document.getElementById("qa_breakControl"),
         qa_holiday: document.getElementById("qa_holiday"),
         qa_holidayChoice: document.getElementById("qa_holidayChoice"),
         qa_holidayWorked: document.getElementById("qa_holidayWorked"),
         qa_holidayHint: document.getElementById("qa_holidayHint"),
         qa_paidOffControl: document.getElementById("qa_paidOffControl"),
         qa_paidOff: document.getElementById("qa_paidOff"),
+        qa_applyOtControl: document.getElementById("qa_applyOtControl"),
         qa_applyOt: document.getElementById("qa_applyOt"),
 
         list: document.getElementById("entryList"),
@@ -101,10 +104,12 @@
         ed_holidayChoice: document.getElementById("ed_holidayChoice"),
         ed_holidayWorked: document.getElementById("ed_holidayWorked"),
         ed_holidayHint: document.getElementById("ed_holidayHint"),
+        ed_normalDay: document.getElementById("ed_normalDay"),
         ed_paidOffControl: document.getElementById("ed_paidOffControl"),
         ed_start: document.getElementById("ed_start"),
         ed_end: document.getElementById("ed_end"),
         ed_break: document.getElementById("ed_break"),
+        ed_workTimeFields: document.getElementById("ed_workTimeFields"),
         ed_paidOff: document.getElementById("ed_paidOff"),
         ed_useGlobal: document.getElementById("ed_useGlobal"),
         ed_overrides: document.getElementById("ed_overrides"),
@@ -113,6 +118,7 @@
         ed_otMul: document.getElementById("ed_otMul"),
         ed_sunMul: document.getElementById("ed_sunMul"),
         ed_holMul: document.getElementById("ed_holMul"),
+        ed_applyOtControl: document.getElementById("ed_applyOtControl"),
         ed_applyOt: document.getElementById("ed_applyOt"),
         ed_cancel: document.getElementById("ed_cancel"),
         ed_save: document.getElementById("ed_save")
@@ -457,6 +463,9 @@
         const overrides = source.overrides && typeof source.overrides === "object"
             ? { ...source.overrides, useGlobal: source.overrides.useGlobal !== false }
             : { useGlobal: true };
+        if (overrides.useGlobal === false && Number.isFinite(+overrides.otThreshold)) {
+            overrides.ordinaryDailyHours = clamp(overrides.otThreshold, 0, 24);
+        }
 
         return {
             id: source.id || `${date.getTime()}_${index}`,
@@ -604,7 +613,11 @@
         const scheduledPaidHours = scheduledHoursForDate(row.dateISO);
         const hasConfiguredSchedule = configuredScheduleHours().length > 0;
         const frozenDailyHours = rates.ordinaryDailyHours;
-        const ordinaryDailyHours = frozenDailyHours ?? (scheduledPaidHours || typicalDailyHours(otTh));
+        // The user-defined normal paid day is also the daily overtime point.
+        // Keep entitlement tied to the Week Template, but use this explicit
+        // number for the public-holiday daily wage instead of guessing from a
+        // start/end schedule that may include different break arrangements.
+        const ordinaryDailyHours = frozenDailyHours ?? otTh;
         const holidayOrdinaryWorkday = holiday && (typeof row.holidayWasOrdinaryWorkday === "boolean"
             ? row.holidayWasOrdinaryWorkday
             : scheduledPaidHours > 0);
@@ -664,6 +677,7 @@
             holidayWorked,
             holidayOrdinaryWorkday,
             holidayNotWorkedPaid: holiday && !holidayWorked && holidayOrdinaryWorkday,
+            ordinaryDailyHours,
             usualSunday: !!rates.usualSunday,
             paidOff,
             usesOvertime: applyOvertime,
@@ -678,6 +692,8 @@
         const hourly = clamp(rates.hourly, 0, 1e9);
         const basicHours = (calc.paidOff || calc.holidayNotWorkedPaid)
             ? calc.paidHours
+            : (calc.specialType === "holiday" && calc.holidayWorked && calc.holidayOrdinaryWorkday)
+                ? calc.ordinaryDailyHours
             : Math.min(calc.hours, calc.otThreshold);
 
         return {
@@ -935,7 +951,7 @@
                 otMultiplier: clamp(rates.otMultiplier, 1, 10),
                 sundayMultiplier: clamp(rates.sundayMultiplier, 1, 10),
                 holidayMultiplier: clamp(rates.holidayMultiplier, 1, 10),
-                ordinaryDailyHours: scheduledHoursForDate(row.dateISO) || typicalDailyHours(rates.otThreshold)
+                ordinaryDailyHours: clamp(rates.otThreshold, 0, 24)
             }
         };
     }
@@ -1090,6 +1106,34 @@
         entries = entries.filter(item => item.id !== id);
         saveEntries();
         render();
+    }
+
+    function ensureAutomaticHolidayEntries(range) {
+        const savedDates = new Set(allEntries().map(row => ymd(row.dateISO)).filter(Boolean));
+        const generated = [];
+
+        for (const day of datesBetween(range.start, range.end)) {
+            const dateStr = ymd(day);
+            if (!isAutoHoliday(day) || savedDates.has(dateStr)) continue;
+
+            generated.push(entryFromValues({
+                date: dateStr,
+                start: "",
+                end: "",
+                breakMin: 0,
+                isHoliday: true,
+                holidayWorked: false,
+                paidOff: false,
+                applyOvertime: false,
+                overrides: { useGlobal: true }
+            }));
+            savedDates.add(dateStr);
+        }
+
+        if (!generated.length) return false;
+        entries.push(...generated);
+        saveEntries();
+        return true;
     }
 
     function autoFillCycle() {
@@ -1263,9 +1307,15 @@
         const hint = isEdit ? el.ed_holidayHint : el.qa_holidayHint;
         const paidOffField = isEdit ? el.ed_paidOff : el.qa_paidOff;
         const paidOffControl = isEdit ? el.ed_paidOffControl : el.qa_paidOffControl;
-        const holiday = !!holidayField.checked || isAutoHoliday(dateField.value);
+        const automaticHoliday = isAutoHoliday(dateField.value);
+        const holiday = !!holidayField.checked || automaticHoliday;
         const holidayWorked = holiday && !!workedField.checked;
+        const workTimeFields = isEdit ? el.ed_workTimeFields : el.qa_workTimeFields;
+        const applyOtControl = isEdit ? el.ed_applyOtControl : el.qa_applyOtControl;
+        const applyOtField = isEdit ? el.ed_applyOt : el.qa_applyOt;
 
+        holidayField.checked = holiday;
+        holidayField.disabled = automaticHoliday;
         choice.hidden = !holiday;
         paidOffControl.hidden = holiday;
         if (holiday) paidOffField.checked = false;
@@ -1274,12 +1324,14 @@
         const date = parseInputDate(dateField.value) || startOfToday();
         const template = settings.weekTemplate[date.getDay()] || { start: "", end: "" };
         const ordinarilyWorks = parseTime(template.start) !== null && parseTime(template.end) !== null;
+        const normalPaidHours = clamp(settings.otThreshold, 0, 24);
+        if (isEdit) el.ed_normalDay.hidden = holiday || date.getDay() === 0;
 
         if (holiday) {
             if (holidayWorked) {
                 hint.textContent = ordinarilyWorks
-                    ? "Normally scheduled day: WorkPay applies at least double the ordinary daily wage, or the daily wage plus time worked when greater."
-                    : "Not normally scheduled: WorkPay applies an ordinary daily wage plus payment for the time worked.";
+                    ? `Worked: at least a double ${normalPaidHours.toFixed(2)}h day, or ${normalPaidHours.toFixed(2)}h plus your actual worked hours when that is greater. Normal 1.5× OT is not added.`
+                    : `Worked on a non-scheduled day: ${normalPaidHours.toFixed(2)}h ordinary daily pay plus your actual worked hours. Normal 1.5× OT is not added.`;
                 if (prefillWorkedTimes) {
                     if (!((isEdit ? el.ed_start : el.qa_start).value)) (isEdit ? el.ed_start : el.qa_start).value = template.start || "";
                     if (!((isEdit ? el.ed_end : el.qa_end).value)) (isEdit ? el.ed_end : el.qa_end).value = template.end || "";
@@ -1287,18 +1339,22 @@
                 }
             } else {
                 hint.textContent = ordinarilyWorks
-                    ? "Not worked: this is normally a workday, so one ordinary day of pay is kept."
-                    : "Not worked: this is not in your Week Template, so no extra holiday payment is added.";
+                    ? `Not worked: WorkPay automatically keeps ${normalPaidHours.toFixed(2)} normal paid hours.`
+                    : "Not worked: this is not in your Week Template, so no holiday payment is added.";
             }
         }
 
         const paidOff = !holiday && !!paidOffField.checked;
         const disableWorkFields = paidOff || (holiday && !holidayWorked);
-        const fields = scope === "edit"
-            ? [el.ed_start, el.ed_end, el.ed_break, el.ed_applyOt]
-            : [el.qa_start, el.qa_end, el.qa_break, el.qa_applyOt];
+        const fields = isEdit
+            ? [el.ed_start, el.ed_end, el.ed_break]
+            : [el.qa_start, el.qa_end, el.qa_break];
         fields.forEach(field => { field.disabled = disableWorkFields; });
-        (isEdit ? el.ed_applyOt : el.qa_applyOt).disabled = paidOff || holiday;
+        workTimeFields.hidden = disableWorkFields;
+        if (!isEdit) el.qa_breakControl.hidden = disableWorkFields;
+        applyOtControl.hidden = paidOff || holiday;
+        applyOtField.disabled = paidOff || holiday;
+        if (holiday) applyOtField.checked = false;
     }
 
     function setAutoDate() {
@@ -1359,6 +1415,12 @@
         if (calc.paidOff) return `Paid base ${calc.paidHours.toFixed(2)}h`;
         if (calc.holidayNotWorkedPaid) return `Paid normal day ${calc.paidHours.toFixed(2)}h · worked 0.00h`;
         if (calc.specialType === "holiday" && !calc.holidayWorked) return "No scheduled holiday pay";
+        if (calc.specialType === "holiday" && calc.holidayWorked) {
+            if (!calc.holidayOrdinaryWorkday || calc.holidayRule === "ordinary-day-worked-daily-plus-time") {
+                return `Normal-day base ${calc.ordinaryDailyHours.toFixed(2)}h + worked ${calc.specialH.toFixed(2)}h`;
+            }
+            return `Double-day minimum ${(calc.ordinaryDailyHours * calc.multiplier).toFixed(2)}h equivalent · worked ${calc.specialH.toFixed(2)}h`;
+        }
         if (calc.hours <= 0) return "No hours";
         if (calc.specialH > 0) return `Special ${calc.specialH.toFixed(2)}h`;
         if (calc.otH > 0) return `Normal ${calc.normalH.toFixed(2)}h + OT ${calc.otH.toFixed(2)}h`;
@@ -1433,6 +1495,12 @@
         appendDetailRow(parent, "Pay", money(calc.amount));
     }
 
+    function requestDateEdit(dateStr) {
+        document.dispatchEvent(new CustomEvent("workpay:edit-date", {
+            detail: { date: dateStr }
+        }));
+    }
+
     function renderSelectedDay(range, rows) {
         if (!selectedDate || !isInRange(selectedDate, range)) {
             const today = ymd(startOfToday());
@@ -1487,8 +1555,16 @@
             actions.appendChild(primary);
 
             el.selectedDayPanel.appendChild(actions);
+        } else if (summary.rows.length) {
+            const actions = make("div", "selected-actions");
+            const editPast = make("button", "btn-primary", "Edit Past Day");
+            editPast.type = "button";
+            editPast.addEventListener("click", () => requestDateEdit(selectedDate));
+            actions.appendChild(editPast);
+            el.selectedDayPanel.appendChild(actions);
+            el.selectedDayPanel.appendChild(make("p", "helper", "Editing keeps the original saved rates unless you choose different per-day settings."));
         } else {
-            el.selectedDayPanel.appendChild(make("p", "helper", "This older payroll date is shown for review and CSV export."));
+            el.selectedDayPanel.appendChild(make("p", "helper", "No saved entry exists for this older date."));
         }
     }
 
@@ -1635,14 +1711,17 @@
             node.querySelector(".edit").addEventListener("click", () => openEdit(row.id));
             node.querySelector(".remove").addEventListener("click", () => removeRow(row.id));
         } else {
-            actions.remove();
+            node.querySelector(".edit").textContent = "Edit Past Day";
+            node.querySelector(".edit").addEventListener("click", () => requestDateEdit(ymd(row.dateISO)));
+            node.querySelector(".remove").remove();
         }
         return node;
     }
 
     function render() {
-        archiveCompletedCycles();
         const range = getViewedMonthRange();
+        ensureAutomaticHolidayEntries(range);
+        archiveCompletedCycles();
         const rows = rowsForViewedMonth(range);
         if (!selectedDate || !isInRange(selectedDate, range)) {
             const today = ymd(startOfToday());
@@ -1678,7 +1757,7 @@
             "NormalHours",
             "OTHours",
             "SpecialHours",
-            "PaidOffHours",
+            "PaidBaseHours",
             "SpecialType",
             "DayPay"
         ];

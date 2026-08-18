@@ -19,7 +19,7 @@
     const SA_RULES = Object.freeze({
         effectiveDate: "2026-05-01",
         minimumWage: 30.23,
-        earningsThreshold: 269900.90,
+        earningsThreshold: 269600.90,
         weeklyOrdinaryHours: 45,
         weeklyOvertimeHours: 10,
         usualSundayMultiplier: 1.5,
@@ -502,7 +502,7 @@
         }
 
         if (overtimeThreshold > dailyOrdinaryLimit) {
-            addCheck(checks, "warning", `Your daily overtime setting starts after ${overtimeThreshold.toFixed(2)}h; the ordinary-hours guide is ${dailyOrdinaryLimit}h for a ${daysPerWeek}-day week.`, 2);
+            addCheck(checks, "warning", `Normal Paid Hours is ${overtimeThreshold.toFixed(2)}h; the ordinary-hours guide is ${dailyOrdinaryLimit}h for a ${daysPerWeek}-day week. This setting also controls a scheduled holiday's paid base.`, 2);
         }
 
         const usualSunday = clamp(settings.sundayOrdinaryMultiplier ?? 1.5, 1, 10);
@@ -513,6 +513,11 @@
         }
         if (holidayMultiplier < SA_RULES.publicHolidayMultiplier) {
             addCheck(checks, "warning", "The saved public-holiday multiplier is below 2×. WorkPay will still enforce the BCEA 2× minimum for a normally scheduled holiday worked.", 1);
+        }
+
+        const workedHolidays = rows.filter(row => row.isHoliday && row.holidayWorked === true).length;
+        if (workedHolidays) {
+            addCheck(checks, "warning", `${workedHolidays} worked public holiday${workedHolidays === 1 ? " is" : "s are"} recorded. Public-holiday work must be agreed, and WorkPay uses the section 18 daily-wage formula without normal 1.5× OT.`, 2);
         }
 
         const timings = rows.map(rowTiming).filter(Boolean).sort((a, b) => a.start - b.start);
