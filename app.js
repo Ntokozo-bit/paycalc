@@ -279,6 +279,9 @@
         if (row.start && parseTime(row.start) === null) return false;
         if (row.end && parseTime(row.end) === null) return false;
         if (row.breakMin !== undefined && !Number.isFinite(Number(row.breakMin))) return false;
+        if (row.holidayPayEnabled !== undefined && typeof row.holidayPayEnabled !== "boolean") return false;
+        if (row.notWorking !== undefined && typeof row.notWorking !== "boolean") return false;
+        if (row.dayChoice != null && !["not-working", "normal", "times", "paid-holiday", "paid-off"].includes(row.dayChoice)) return false;
         if (row.holidayWorked !== undefined && typeof row.holidayWorked !== "boolean") return false;
         if (row.holidayWasOrdinaryWorkday !== undefined && typeof row.holidayWasOrdinaryWorkday !== "boolean") return false;
         return true;
@@ -517,7 +520,7 @@
 
         const workedHolidays = rows.filter(row => row.isHoliday && row.holidayWorked === true).length;
         if (workedHolidays) {
-            addCheck(checks, "warning", `${workedHolidays} worked public holiday${workedHolidays === 1 ? " is" : "s are"} recorded. Public-holiday work must be agreed, and WorkPay uses the section 18 daily-wage formula without normal 1.5× OT.`, 2);
+            addCheck(checks, "warning", `${workedHolidays} worked public holiday${workedHolidays === 1 ? " is" : "s are"} recorded. Public-holiday work must be agreed, and WorkPay preserves the section 18 daily-wage minimum, with your chosen holiday formula and no separate normal 1.5× OT.`, 2);
         }
 
         const timings = rows.map(rowTiming).filter(Boolean).sort((a, b) => a.start - b.start);

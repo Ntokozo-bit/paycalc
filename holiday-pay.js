@@ -21,6 +21,13 @@
         const ordinaryDailyPay = ordinaryDailyHours * hourlyRate;
         const timeWorkedPay = workedHours * hourlyRate;
 
+        if (!worked && input?.payNotWorked === false) {
+            return {
+                amount: 0, paidHours: 0, workedHours: 0, ordinarilyWorks, worked: false,
+                rule: "not-worked-pay-excluded"
+            };
+        }
+
         if (!worked) {
             return {
                 amount: ordinarilyWorks ? ordinaryDailyPay : 0,
@@ -32,26 +39,33 @@
             };
         }
 
+        const multipliedHoursPay = timeWorkedPay * holidayMultiplier;
+        const payAllHours = input?.holidayPayMode === "all-hours";
+
         if (!ordinarilyWorks) {
             return {
-                amount: ordinaryDailyPay + timeWorkedPay,
+                amount: Math.max(ordinaryDailyPay + timeWorkedPay, payAllHours ? multipliedHoursPay : 0),
                 paidHours: ordinaryDailyHours,
                 workedHours,
                 ordinarilyWorks: false,
                 worked: true,
-                rule: "non-ordinary-day-worked"
+                rule: payAllHours && multipliedHoursPay >= ordinaryDailyPay + timeWorkedPay
+                    ? "worked-hours-multiplier" : "non-ordinary-day-worked"
             };
         }
 
         const doubleDailyPay = ordinaryDailyPay * holidayMultiplier;
         const dailyPlusTimeWorked = ordinaryDailyPay + timeWorkedPay;
+        const minimumPay = Math.max(doubleDailyPay, dailyPlusTimeWorked);
         return {
-            amount: Math.max(doubleDailyPay, dailyPlusTimeWorked),
+            amount: Math.max(minimumPay, payAllHours ? multipliedHoursPay : 0),
             paidHours: ordinaryDailyHours,
             workedHours,
             ordinarilyWorks: true,
             worked: true,
-            rule: doubleDailyPay >= dailyPlusTimeWorked
+            rule: payAllHours && multipliedHoursPay >= minimumPay
+                ? "worked-hours-multiplier"
+                : doubleDailyPay >= dailyPlusTimeWorked
                 ? "ordinary-day-worked-double-daily"
                 : "ordinary-day-worked-daily-plus-time"
         };

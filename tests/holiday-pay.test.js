@@ -26,4 +26,9 @@ assert.equal(pay({ ordinarilyWorks: false, worked: true, workedHours: 4 }).amoun
 assert.equal(pay({ worked: true, workedHours: 8, holidayMultiplier: 2.5 }).amount, 2000, "better configured multiplier is preserved");
 assert.equal(pay({ worked: true, workedHours: -2 }).amount, 800, "invalid negative hours cannot create holiday work pay");
 
+assert.equal(pay({ worked: true, workedHours: 11, ordinaryDailyHours: 9, holidayPayMode: "all-hours" }).amount, 2200, "double every worked hour including extra time");
+assert.equal(pay({ worked: true, workedHours: 4, ordinaryDailyHours: 9, holidayPayMode: "all-hours" }).amount, 1800, "short holiday shift retains SA minimum");
+assert.equal(pay({ ordinarilyWorks: false, worked: true, workedHours: 4, ordinaryDailyHours: 9, holidayPayMode: "all-hours" }).amount, 1300, "non-scheduled holiday retains daily-plus-time minimum");
+assert.equal(pay({ worked: false, payNotWorked: false }).amount, 0, "explicit unworked holiday exclusion");
+assert.equal(pay({ worked: true, workedHours: 10, payNotWorked: false, holidayPayMode: "all-hours" }).amount, 2000, "unworked pay switch does not suppress worked holiday pay");
 console.log("holiday pay tests passed");

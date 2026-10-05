@@ -218,10 +218,16 @@
                         <input type="checkbox" id="qa_holiday" />
                     </label>
                 </div>
+                <label class="control full"><span class="lab">Day choice</span><select id="qa_dayChoice"><option value="not-working">Not working / no pay</option><option value="normal">Working a normal day</option><option value="times">Enter worked times</option><option value="paid-holiday">Paid holiday, not worked</option><option value="paid-off">Paid off day</option></select></label>
+                <p class="helper">Holidays add no pay until you save a choice. Choose Not working when you receive no pay, including after your contract ends.</p>
                 <div class="holiday-choice" id="qa_holidayChoice" hidden>
                     <label class="control chk full">
                         <span class="lab">I worked this public holiday</span>
                         <input type="checkbox" id="qa_holidayWorked" />
+                    </label>
+                    <label class="control chk full" id="qa_holidayPayControl">
+                        <span class="lab">Include normal pay for this unworked holiday</span>
+                        <input type="checkbox" id="qa_holidayPayEnabled" checked />
                     </label>
                     <p class="helper" id="qa_holidayHint"></p>
                 </div>
@@ -230,7 +236,7 @@
                     <input type="checkbox" id="qa_paidOff" />
                 </label>
                 <label class="control chk full" id="qa_applyOtControl">
-                    <span class="lab">Apply overtime on normal days</span>
+                    <span class="lab">Include overtime pay on normal days</span>
                     <input type="checkbox" id="qa_applyOt" checked />
                 </label>
                 <button class="btn-primary" id="qa_addBtn" type="submit">
@@ -294,8 +300,15 @@
                     <span class="lab">Holiday Multiplier</span>
                     <input type="number" id="s_holMult" min="1" max="10" step="0.1" value="2" />
                 </label>
+                <label class="control">
+                    <span class="lab">Holiday work pay</span>
+                    <select id="s_holidayPayMode">
+                        <option value="all-hours">Double every worked hour (with SA minimum)</option>
+                        <option value="daily-wage">SA daily-wage formula</option>
+                    </select>
+                </label>
                 <p class="helper">Normal Paid Hours sets both the daily overtime point and the ordinary paid hours used for a scheduled public holiday. Normal-day overtime is usually 1.5×; it is never stacked onto public-holiday pay.</p>
-                <p class="helper">A Sunday in your Week Template is treated as usual work (normally 1.5×); other Sundays normally use 2×. Public-holiday work uses the BCEA daily-wage formula with a 2× minimum.</p>
+                <p class="helper">A Sunday in your Week Template is treated as usual work (normally 1.5×); other Sundays normally use 2×. Holiday work can multiply every worked hour or use the SA daily-wage formula. Both keep the SA minimum; normal overtime is not added again. Turning overtime off on an ordinary day removes the premium and pays worked hours at the normal rate.</p>
             </fieldset>
 
             <fieldset class="group">
@@ -323,7 +336,7 @@
                     <span class="lab">Annual Earnings (optional)</span>
                     <input type="number" id="s_annualEarnings" min="0" step="100" inputmode="decimal" placeholder="Used only for BCEA guidance" />
                 </label>
-                <p class="helper">From 1 May 2026, some BCEA working-time protections do not automatically apply above R269,900.90 per year.</p>
+                <p class="helper">From 1 May 2026, some BCEA working-time protections do not automatically apply above R269,600.90 per year.</p>
             </fieldset>
 
             <fieldset class="group">
@@ -383,6 +396,8 @@
                     <label class="control"><span class="lab">Date</span><input type="date" id="ed_date" required /></label>
                     <label class="control chk"><span class="lab">Holiday?</span><input type="checkbox" id="ed_holiday" /></label>
                 </div>
+                <label class="control full"><span class="lab">Day choice</span><select id="ed_dayChoice"><option value="not-working">Not working / no pay</option><option value="normal">Working a normal day</option><option value="times">Enter worked times</option><option value="paid-holiday">Paid holiday, not worked</option><option value="paid-off">Paid off day</option></select></label>
+                <p class="helper">Holidays add no pay until you save a choice. Choose Not working when you receive no pay, including after your contract ends.</p>
                 <button class="btn-normal-day" type="button" id="ed_normalDay" aria-pressed="false">
                     <span class="normal-day-box" aria-hidden="true">
                         <svg class="normal-day-check" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>
@@ -394,6 +409,10 @@
                         <span class="lab">I worked this public holiday</span>
                         <input type="checkbox" id="ed_holidayWorked" />
                     </label>
+                    <label class="control chk full" id="ed_holidayPayControl">
+                        <span class="lab">Include normal pay for this unworked holiday</span>
+                        <input type="checkbox" id="ed_holidayPayEnabled" checked />
+                    </label>
                     <p class="helper" id="ed_holidayHint"></p>
                 </div>
                 <div id="ed_workTimeFields">
@@ -404,7 +423,7 @@
                     <label class="control"><span class="lab">Break (min)</span><input type="number" id="ed_break" min="0" step="5" /></label>
                 </div>
                 <label class="control chk full" id="ed_paidOffControl"><span class="lab">Paid off day</span><input type="checkbox" id="ed_paidOff" /></label>
-                <label class="control chk full" id="ed_applyOtControl"><span class="lab">Apply overtime on normal days</span><input type="checkbox" id="ed_applyOt" checked /></label>
+                <label class="control chk full" id="ed_applyOtControl"><span class="lab">Include overtime pay on normal days</span><input type="checkbox" id="ed_applyOt" checked /></label>
             </fieldset>
 
             <fieldset class="group">
@@ -455,8 +474,8 @@
 
                 <section class="help-topic">
                     <h3>Public holidays</h3>
-                    <p>WorkPay detects South African public holidays automatically. If the holiday is normally a workday, it is saved with your Normal Paid Hours even when you do not work.</p>
-                    <p>Only turn on <strong>I worked this public holiday</strong> when you actually worked, then enter your start, finish, and break. Holiday work uses the BCEA daily-wage formula and does not add normal 1.5× overtime.</p>
+                    <p>WorkPay marks South African public holidays on the calendar, but adds no entry or pay automatically. Add each day yourself: choose Not working / no pay when nothing is due, including after your contract ends. Choose Paid holiday, not worked only when you receive ordinary pay for a normally scheduled workday.</p>
+                    <p>Choose <strong>Working a normal day</strong> for your usual shift, or <strong>Enter worked times</strong> for your actual start, finish and break. Holiday work uses your chosen holiday formula for all worked hours with the SA daily-wage minimum; separate normal overtime is not added.</p>
                 </section>
 
                 <section class="help-topic">
@@ -505,9 +524,10 @@
 
     <div class="toast" id="workpayToast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
 
-    <script src="holiday-pay.js?v=8" defer></script>
-    <script src="core.js?v=8" defer></script>
-    <script src="direct-date-edit.js?v=8" defer></script>
-    <script src="app.js?v=8" defer></script>
+    <script src="holiday-pay.js?v=12" defer></script>
+    <script src="day-choices.js?v=12" defer></script>
+    <script src="core.js?v=12" defer></script>
+    <script src="direct-date-edit.js?v=12" defer></script>
+    <script src="app.js?v=12" defer></script>
 </body>
 </html>
