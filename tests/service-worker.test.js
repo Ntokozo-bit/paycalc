@@ -6,7 +6,7 @@ const vm = require("node:vm");
 module.exports = async function () {
     const handlers = new Map(); const saved = new Map(); const puts = [];
     const cloneable = value => ({ value, ok: true, clone() { return cloneable(value); } });
-    const currentUrl = "http://localhost/core.js?v=11";
+    const currentUrl = "http://localhost/core.js?v=12";
     saved.set(currentUrl, cloneable("current-script"));
     const cache = {
         match: async key => saved.get(typeof key === "string" ? key : key.url),
@@ -16,7 +16,7 @@ module.exports = async function () {
     const context = vm.createContext({
         URL,
         self: { location: { origin: "http://localhost" }, addEventListener: (name, callback) => handlers.set(name, callback) },
-        caches: { open: async name => { assert.equal(name, "workpay-v11"); return cache; } },
+        caches: { open: async name => { assert.equal(name, "workpay-v12"); return cache; } },
         fetch: async () => { if (!online) throw new Error("offline"); return cloneable("fresh-script"); }
     });
     vm.runInContext(fs.readFileSync(path.join(__dirname, "../service-worker.js"), "utf8"), context);

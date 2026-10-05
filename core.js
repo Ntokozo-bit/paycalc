@@ -7,7 +7,7 @@
 (function () {
     "use strict";
 
-    const { calculatePublicHolidayPay, getEmploymentDayStatus, getHolidayPayEligibility } = window.WorkPayRules;
+    const { calculatePublicHolidayPay } = window.WorkPayRules;
 
     const STORE = {
         SETTINGS: "paycalc_settings_v2",
@@ -62,11 +62,6 @@
         s_currency: document.getElementById("s_currency"),
         s_defaultBreak: document.getElementById("s_defaultBreak"),
         s_annualEarnings: document.getElementById("s_annualEarnings"),
-        s_autoHolidayPay: document.getElementById("s_autoHolidayPay"),
-        s_employmentStart: document.getElementById("s_employmentStart"),
-        s_employmentEnd: document.getElementById("s_employmentEnd"),
-        s_unpaidStart: document.getElementById("s_unpaidStart"),
-        s_unpaidEnd: document.getElementById("s_unpaidEnd"),
         week: Array.from({ length: 7 }, (_, i) => ({
             start: document.getElementById(`w${i}_start`),
             end: document.getElementById(`w${i}_end`)
@@ -146,11 +141,6 @@
         currency: "R",
         defaultBreak: 60,
         annualEarnings: 0,
-        autoHolidayPay: false,
-        employmentStart: "",
-        employmentEnd: "",
-        unpaidStart: "",
-        unpaidEnd: "",
         weekTemplate: [
             { start: "", end: "" },
             { start: "08:00", end: "17:00" },
@@ -212,12 +202,6 @@
             currency: String(source.currency || DEFAULT_SETTINGS.currency).replace(/[<>]/g, "").slice(0, 4),
             defaultBreak: clamp(source.defaultBreak ?? DEFAULT_SETTINGS.defaultBreak, 0, 24 * 60),
             annualEarnings: clamp(source.annualEarnings ?? 0, 0, 1e12),
-            // Preserve existing setups; new users explicitly enable unworked holiday pay.
-            autoHolidayPay: typeof source.autoHolidayPay === "boolean" ? source.autoHolidayPay : (raw != null),
-            employmentStart: parseInputDate(source.employmentStart) ? source.employmentStart : "",
-            employmentEnd: parseInputDate(source.employmentEnd) ? source.employmentEnd : "",
-            unpaidStart: parseInputDate(source.unpaidStart) ? source.unpaidStart : "",
-            unpaidEnd: parseInputDate(source.unpaidEnd) ? source.unpaidEnd : "",
             weekTemplate: Array.from({ length: 7 }, (_, index) => {
                 const day = template[index] && typeof template[index] === "object" ? template[index] : {};
                 return {
@@ -515,6 +499,8 @@
             breakMin: clamp(source.breakMin ?? 0, 0, 24 * 60),
             isHoliday: !!source.isHoliday,
             holidayWorked,
+            notWorking: !!source.notWorking,
+            dayChoice: source.dayChoice || null,
             holidayPayEnabled: source.holidayPayEnabled !== false,
             holidayWasOrdinaryWorkday,
             paidOff: !holiday && !!source.paidOff,
@@ -651,7 +637,7 @@
             totalMin = Math.max(0, end - sMin - brk);
         }
 
-        const hours = (paidOff || (holiday && !holidayWorked)) ? 0 : totalMin / 60;
+        const hours = (row.notWorking || paidOff || (holiday && !holidayWorked)) ? 0 : totalMin / 60;
         const scheduledPaidHours = scheduledHoursForDate(row.dateISO);
         const hasConfiguredSchedule = configuredScheduleHours().length > 0;
         const frozenDailyHours = rates.ordinaryDailyHours;
@@ -663,8 +649,7 @@
         const holidayOrdinaryWorkday = holiday && (typeof row.holidayWasOrdinaryWorkday === "boolean"
             ? row.holidayWasOrdinaryWorkday
             : scheduledPaidHours > 0);
-        const holidayEligibility = getHolidayPayEligibility(settings, ymd(row.dateISO));
-        const holidayPayEnabled = row.holidayPayEnabled !== false && holidayEligibility.eligible;
+        const holidayPayEnabled = !row.notWorking && row.holidayPayEnabled !== false;
         const paidHours = paidOff
             ? (frozenDailyHours ?? (hasConfiguredSchedule ? scheduledPaidHours : otTh))
             : (holiday && !holidayWorked && holidayOrdinaryWorkday && holidayPayEnabled ? ordinaryDailyHours : 0);
@@ -693,7 +678,7 @@
         let specialPay = multipliedSpecialPay;
         let holidayRule = "";
         if (specialType === "sunday") {
-            specialPay = Math.max(specialPay, ordinaryDailyPay);
+            specialPay = paidOff || row.notWorking ? 0 : Math.max(specialPay, ordinaryDailyPay);
         } else if (specialType === "holiday") {
             const result = calculatePublicHolidayPay({
                 hourlyRate: hr,
@@ -715,7 +700,8 @@
             normalH,
             otH,
             specialH,
-            amount: normalPay + otPay + specialPay + (paidOff ? paidOffPay : 0),
+            amount: row.notWorking ? 0 : normalPay + otPay + specialPay + (paidOff ? paidOffPay : 0),
+            notWorking: !!row.notWorking,
             multiplier: specialMult,
             specialType,
             specialFloorApplied: specialPay > multipliedSpecialPay + 0.005,
@@ -723,7 +709,7 @@
             holidayWorked,
             holidayOrdinaryWorkday,
             holidayPayEnabled,
-            holidayEligibilityReason: holidayEligibility.reason,
+            holidayEligibilityReason: "",
             holidayNotWorkedPaid: holiday && !holidayWorked && holidayOrdinaryWorkday && holidayPayEnabled,
             ordinaryDailyHours,
             usualSunday: !!rates.usualSunday,
@@ -1070,11 +1056,6 @@
         el.s_currency.value = settings.currency ?? "R";
         el.s_defaultBreak.value = settings.defaultBreak ?? 60;
         el.s_annualEarnings.value = settings.annualEarnings || "";
-        el.s_autoHolidayPay.checked = settings.autoHolidayPay;
-        el.s_employmentStart.value = settings.employmentStart;
-        el.s_employmentEnd.value = settings.employmentEnd;
-        el.s_unpaidStart.value = settings.unpaidStart;
-        el.s_unpaidEnd.value = settings.unpaidEnd;
         for (let i = 0; i < 7; i += 1) {
             el.week[i].start.value = settings.weekTemplate[i]?.start || "";
             el.week[i].end.value = settings.weekTemplate[i]?.end || "";
@@ -1082,14 +1063,6 @@
     }
 
     function saveSettingsFromForm() {
-        if (el.s_employmentStart.value && el.s_employmentEnd.value && el.s_employmentStart.value > el.s_employmentEnd.value) {
-            window.alert("Contract end must be on or after the employment start date.");
-            return false;
-        }
-        if ((el.s_unpaidEnd.value && !el.s_unpaidStart.value) || (el.s_unpaidStart.value && el.s_unpaidEnd.value && el.s_unpaidStart.value > el.s_unpaidEnd.value)) {
-            window.alert("Choose an unpaid start date and an end date on or after it, or leave the end blank for ongoing unpaid time.");
-            return false;
-        }
         const nextSettings = normalizeSettings({
             hourly: clamp(el.s_hourly.value, 0, 1e9),
             otThreshold: clamp(el.s_otThreshold.value, 0, 24),
@@ -1102,11 +1075,6 @@
             currency: String(el.s_currency.value || "R").replace(/[<>]/g, "").slice(0, 4),
             defaultBreak: clamp(el.s_defaultBreak.value, 0, 24 * 60),
             annualEarnings: clamp(el.s_annualEarnings.value, 0, 1e12),
-            autoHolidayPay: el.s_autoHolidayPay.checked,
-            employmentStart: el.s_employmentStart.value,
-            employmentEnd: el.s_employmentEnd.value,
-            unpaidStart: el.s_unpaidStart.value,
-            unpaidEnd: el.s_unpaidEnd.value,
             weekTemplate: el.week.map(w => ({ start: w.start.value || "", end: w.end.value || "" }))
         });
         if (!persistJson(STORE.SETTINGS, nextSettings)) return false;
@@ -1124,6 +1092,8 @@
             : holiday && scheduledHoursForDate(entryDate) > 0;
         return {
             id: existing?.id || cryptoId(),
+            notWorking: !!values.notWorking,
+            dayChoice: values.dayChoice || null,
             dateISO: entryDate,
             start: holiday && !holidayWorked ? "" : (values.start || ""),
             end: holiday && !holidayWorked ? "" : (values.end || ""),
@@ -1139,12 +1109,14 @@
         };
     }
 
-    function addRow(dateValue, start, end, breakMin, isHoliday, holidayWorked, paidOff, applyOvertime, overrides, holidayPayEnabled) {
+    function addRow(dateValue, start, end, breakMin, isHoliday, holidayWorked, paidOff, applyOvertime, overrides, holidayPayEnabled, dayChoice) {
         const dateStr = ymd(dateValue);
         const existingIndex = entries.findIndex(row => ymd(row.dateISO) === dateStr);
         const existing = existingIndex >= 0 ? entries[existingIndex] : null;
         const row = entryFromValues({
             date: dateStr,
+            dayChoice,
+            notWorking: dayChoice === "not-working",
             start,
             end,
             breakMin,
@@ -1177,40 +1149,13 @@
         render();
     }
 
-    function ensureAutomaticHolidayEntries(range) {
-        const savedDates = new Set(allEntries().map(row => ymd(row.dateISO)).filter(Boolean));
-        const generated = [];
-
-        for (const day of datesBetween(range.start, range.end)) {
-            const dateStr = ymd(day);
-            if (!isAutoHoliday(day) || savedDates.has(dateStr)) continue;
-
-            generated.push(entryFromValues({
-                date: dateStr,
-                start: "",
-                end: "",
-                breakMin: 0,
-                isHoliday: true,
-                holidayWorked: false,
-                paidOff: false,
-                applyOvertime: false,
-                overrides: { useGlobal: true }
-            }));
-            savedDates.add(dateStr);
-        }
-
-        if (!generated.length) return false;
-        if (!persistEntryState([...entries, ...generated])) return false;
-        return true;
-    }
-
     function autoFillCycle() {
         const range = getCurrentCycleRange();
         const generated = [];
         const existingDates = new Set(entries.map(row => ymd(row.dateISO)));
 
         for (const day of datesBetween(range.start, range.end)) {
-            if (!getEmploymentDayStatus(settings, ymd(day)).eligible) continue;
+            if (isAutoHoliday(day)) continue;
             const template = settings.weekTemplate[day.getDay()] || { start: "", end: "" };
             if (!template.start && !template.end) continue;
             if (existingDates.has(ymd(day))) continue;
@@ -1270,6 +1215,7 @@
         el.ed_break.value = row.breakMin ?? settings.defaultBreak;
         el.ed_paidOff.checked = !!row.paidOff;
         el.ed_applyOt.checked = usesOvertime(row);
+        window.WorkPayDayChoices.restore("ed", row);
         syncSpecialDayControls("edit");
         setEditOverrides(row);
         openSheet(el.editSheet);
@@ -1291,6 +1237,7 @@
         el.ed_break.value = clamp(settings.defaultBreak ?? 60, 0, 24 * 60);
         el.ed_paidOff.checked = false;
         el.ed_applyOt.checked = true;
+        window.WorkPayDayChoices.restore("ed", null);
         syncSpecialDayControls("edit");
         setEditOverrides({ overrides: { useGlobal: true } });
         openSheet(el.editSheet);
@@ -1318,6 +1265,8 @@
         const holidayWorked = holiday && !!el.ed_holidayWorked.checked;
         const row = entryFromValues({
             date: dateStr,
+            dayChoice: document.getElementById("ed_dayChoice").value,
+            notWorking: document.getElementById("ed_dayChoice").value === "not-working",
             start: holiday && !holidayWorked ? "" : (el.ed_start.value || ""),
             end: holiday && !holidayWorked ? "" : (el.ed_end.value || ""),
             breakMin: holiday && !holidayWorked ? 0 : el.ed_break.value,
@@ -1345,8 +1294,10 @@
     function autoTickHoliday(dateStr) {
         el.qa_holiday.checked = !!dateStr && isAutoHoliday(dateStr);
         el.qa_holidayWorked.checked = false;
-        const existing = allEntries().find(row => ymd(row.dateISO) === dateStr);
-        el.qa_holidayPayEnabled.checked = existing?.holidayPayEnabled !== false;
+        el.qa_holidayPayEnabled.checked = false;
+        el.qa_paidOff.checked = false;
+        el.qa_applyOt.checked = true;
+        window.WorkPayDayChoices.restore("qa", null);
     }
 
     function prefillQuickAddForDate(dateStr) {
@@ -1401,8 +1352,7 @@
         const ordinarilyWorks = parseTime(template.start) !== null && parseTime(template.end) !== null;
         const normalPaidHours = clamp(settings.otThreshold, 0, 24);
         const doubleAllHours = settings.holidayPayMode === "all-hours";
-        const holidayEligibility = getHolidayPayEligibility(settings, ymd(date));
-        payField.disabled = !holidayEligibility.eligible;
+        payField.disabled = false;
         if (isEdit) el.ed_normalDay.hidden = holiday || date.getDay() === 0;
 
         if (holiday) {
@@ -1418,9 +1368,7 @@
                     if (!((isEdit ? el.ed_break : el.qa_break).value)) (isEdit ? el.ed_break : el.qa_break).value = String(settings.defaultBreak || 0);
                 }
             } else {
-                hint.textContent = !holidayEligibility.eligible
-                    ? `Not worked: no holiday pay. ${holidayEligibility.reason}.`
-                    : !payField.checked
+                hint.textContent = !payField.checked
                     ? "Not worked: holiday pay is excluded from your estimate."
                     : ordinarilyWorks
                     ? `Not worked: WorkPay keeps ${normalPaidHours.toFixed(2)} normal paid hours.`
@@ -1439,6 +1387,7 @@
         applyOtControl.hidden = paidOff || holiday;
         applyOtField.disabled = paidOff || holiday;
         if (holiday) applyOtField.checked = false;
+        window.WorkPayDayChoices.sync(isEdit ? "ed" : "qa");
     }
 
     function setAutoDate() {
@@ -1468,7 +1417,8 @@
             !holiday && !!el.qa_paidOff.checked,
             !!el.qa_applyOt.checked,
             { useGlobal: true },
-            !!el.qa_holidayPayEnabled.checked
+            !!el.qa_holidayPayEnabled.checked,
+            document.getElementById("qa_dayChoice").value
         );
         if (saved === false) return;
         const nextDate = addDays(dateStr, 1);
@@ -1476,6 +1426,7 @@
     }
 
     function buildRateText(calc) {
+        if (calc.notWorking) return "Not working · no pay";
         if (calc.paidOff) return `Paid off base day (${calc.paidHours.toFixed(2)}h)`;
         if (calc.specialType === "holiday") {
             if (!calc.holidayWorked) {
@@ -1770,7 +1721,12 @@
         });
         node.querySelector(".amount").textContent = money(calc.amount);
         node.querySelector(".rate").textContent = buildRateText(calc);
-        if (calc.paidOff) {
+        if (calc.notWorking) {
+            node.querySelector(".start").textContent = "Not working";
+            node.querySelector(".end").textContent = "No pay";
+            node.querySelector(".break").textContent = "Worked 0.00h";
+            node.querySelector(".hours").textContent = money(0);
+        } else if (calc.paidOff) {
             node.querySelector(".start").textContent = "Paid off";
             node.querySelector(".end").textContent = `Base ${calc.paidHours.toFixed(2)}h`;
             node.querySelector(".break").textContent = "Worked 0.00h";
@@ -1809,7 +1765,6 @@
 
     function render() {
         const range = getViewedMonthRange();
-        ensureAutomaticHolidayEntries(range);
         archiveCompletedCycles();
         const rows = rowsForViewedMonth(range);
         if (!selectedDate || !isInRange(selectedDate, range)) {
@@ -1915,6 +1870,8 @@
     el.ed_paidOff.addEventListener("change", () => syncSpecialDayControls("edit"));
     el.ed_holiday.addEventListener("change", () => {
         el.ed_holidayWorked.checked = false;
+        el.ed_paidOff.checked = false;
+        window.WorkPayDayChoices.restore("ed", null);
         syncSpecialDayControls("edit");
     });
     el.ed_holidayPayEnabled.addEventListener("change", () => syncSpecialDayControls("edit"));
@@ -1924,6 +1881,8 @@
             el.ed_holiday.checked = isAutoHoliday(el.ed_date.value);
         }
         el.ed_holidayWorked.checked = false;
+        el.ed_paidOff.checked = false;
+        window.WorkPayDayChoices.restore("ed", null);
         syncSpecialDayControls("edit");
     });
 
@@ -1946,6 +1905,7 @@
     el.qa_paidOff.addEventListener("change", () => syncSpecialDayControls("quick"));
     el.qa_holiday.addEventListener("change", () => {
         el.qa_holidayWorked.checked = false;
+        window.WorkPayDayChoices.restore("qa", null);
         syncSpecialDayControls("quick");
     });
     el.qa_holidayPayEnabled.addEventListener("change", () => syncSpecialDayControls("quick"));

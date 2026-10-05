@@ -1,7 +1,7 @@
-const CACHE_NAME = "workpay-v11";
+const CACHE_NAME = "workpay-v12";
 const APP_SHELL = [
     "./", "./index.html", "./styles.css",
-    "./holiday-pay.js?v=11", "./core.js?v=11", "./direct-date-edit.js?v=11", "./app.js?v=11",
+    "./holiday-pay.js?v=12", "./day-choices.js?v=12", "./core.js?v=12", "./direct-date-edit.js?v=12", "./app.js?v=12",
     "./manifest.webmanifest", "./favicon.svg", "./icon-192.png", "./icon-512.png"
 ];
 

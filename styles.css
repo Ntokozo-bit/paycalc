@@ -44,7 +44,8 @@ body.sheet-open {
 }
 
 button,
-input {
+input,
+select {
     font: inherit;
 }
 
@@ -680,7 +681,8 @@ input[type="time"],
 input[type="number"],
 input[type="date"],
 input[type="month"],
-input[type="text"] {
+input[type="text"],
+select {
     width: 100%;
     min-height: 46px;
     padding: 10px 12px;
@@ -695,14 +697,16 @@ input:disabled {
     opacity: .76;
 }
 
-input:focus {
+input:focus,
+select:focus {
     border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(110, 168, 255, .18);
 }
 
 button:focus-visible,
 .file-button:focus-visible,
-input:focus-visible {
+input:focus-visible,
+select:focus-visible {
     outline: 3px solid rgba(110, 168, 255, .52);
     outline-offset: 2px;
 }
@@ -1315,3 +1319,6 @@ input[type="checkbox"] {
         animation-iteration-count: 1 !important;
     }
 }
+
+/* Day-choice controls replace the individual status toggles. */
+.control[hidden], .helper[hidden] { display: none; }

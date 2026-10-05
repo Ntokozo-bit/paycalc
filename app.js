@@ -280,6 +280,8 @@
         if (row.end && parseTime(row.end) === null) return false;
         if (row.breakMin !== undefined && !Number.isFinite(Number(row.breakMin))) return false;
         if (row.holidayPayEnabled !== undefined && typeof row.holidayPayEnabled !== "boolean") return false;
+        if (row.notWorking !== undefined && typeof row.notWorking !== "boolean") return false;
+        if (row.dayChoice != null && !["not-working", "normal", "times", "paid-holiday", "paid-off"].includes(row.dayChoice)) return false;
         if (row.holidayWorked !== undefined && typeof row.holidayWorked !== "boolean") return false;
         if (row.holidayWasOrdinaryWorkday !== undefined && typeof row.holidayWasOrdinaryWorkday !== "boolean") return false;
         return true;

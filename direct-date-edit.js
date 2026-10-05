@@ -500,8 +500,7 @@
         const ordinarilyWorks = /^\d{2}:\d{2}$/.test(template.start || "")
             && /^\d{2}:\d{2}$/.test(template.end || "");
         const normalPaidHours = clamp(settings.otThreshold ?? 9, 0, 24);
-        const holidayEligibility = window.WorkPayRules.getHolidayPayEligibility(settings, fields.date.value);
-        fields.holidayPayEnabled.disabled = !holidayEligibility.eligible;
+        fields.holidayPayEnabled.disabled = false;
 
         fields.holiday.checked = holiday;
         fields.holiday.disabled = automaticHoliday;
@@ -525,9 +524,7 @@
                     if (!fields.breakMin.value) fields.breakMin.value = String(settings.defaultBreak || 0);
                 }
             } else {
-                fields.holidayHint.textContent = !holidayEligibility.eligible
-                    ? `Not worked: no holiday pay. ${holidayEligibility.reason}.`
-                    : !fields.holidayPayEnabled.checked
+                fields.holidayHint.textContent = !fields.holidayPayEnabled.checked
                     ? "Not worked: holiday pay is excluded from your estimate."
                     : ordinarilyWorks
                     ? `Not worked: WorkPay keeps ${normalPaidHours.toFixed(2)} normal paid hours.`
@@ -544,6 +541,7 @@
         fields.applyOtControl.hidden = paidOff || holiday;
         fields.applyOt.disabled = paidOff || holiday;
         if (holiday) fields.applyOt.checked = false;
+        window.WorkPayDayChoices.sync("ed");
     }
 
     function setOverrideFields(row) {
@@ -584,6 +582,7 @@
         fields.paidOff.checked = !!row?.paidOff;
         fields.applyOt.checked = row ? (row.applyOvertime !== false && row.countOvertime !== false) : true;
         setOverrideFields(row);
+        window.WorkPayDayChoices.restore("ed", row);
         syncSpecialDayControls();
         syncNormalDayButton(dateStr);
         editSheet.setAttribute("aria-hidden", "false");
@@ -666,6 +665,8 @@
         cleanActive.push({
             ...pendingHistoricalEdit.row,
             id: pendingHistoricalEdit.id,
+            dayChoice: document.getElementById("ed_dayChoice").value,
+            notWorking: document.getElementById("ed_dayChoice").value === "not-working",
             dateISO: inputDateToIso(dateStr),
             start: holiday && !holidayWorked ? "" : (fields.start.value || ""),
             end: holiday && !holidayWorked ? "" : (fields.end.value || ""),
@@ -711,11 +712,15 @@
             fields.holiday.checked = isAutoHoliday(fields.date.value);
         }
         fields.holidayWorked.checked = false;
+        fields.paidOff.checked = false;
+        window.WorkPayDayChoices.restore("ed", null);
         syncSpecialDayControls();
     });
     fields.paidOff.addEventListener("change", syncSpecialDayControls);
     fields.holiday.addEventListener("change", () => {
         fields.holidayWorked.checked = false;
+        fields.paidOff.checked = false;
+        window.WorkPayDayChoices.restore("ed", null);
         syncSpecialDayControls();
     });
     fields.holidayPayEnabled.addEventListener("change", () => syncSpecialDayControls());
