@@ -57,6 +57,7 @@
         s_sunRegularMult: document.getElementById("s_sunRegularMult"),
         s_sunMult: document.getElementById("s_sunMult"),
         s_holMult: document.getElementById("s_holMult"),
+        s_holidayPayMode: document.getElementById("s_holidayPayMode"),
         s_cycleStart: document.getElementById("s_cycleStart"),
         s_currency: document.getElementById("s_currency"),
         s_defaultBreak: document.getElementById("s_defaultBreak"),
@@ -77,6 +78,8 @@
         qa_holiday: document.getElementById("qa_holiday"),
         qa_holidayChoice: document.getElementById("qa_holidayChoice"),
         qa_holidayWorked: document.getElementById("qa_holidayWorked"),
+        qa_holidayPayEnabled: document.getElementById("qa_holidayPayEnabled"),
+        qa_holidayPayControl: document.getElementById("qa_holidayPayControl"),
         qa_holidayHint: document.getElementById("qa_holidayHint"),
         qa_paidOffControl: document.getElementById("qa_paidOffControl"),
         qa_paidOff: document.getElementById("qa_paidOff"),
@@ -103,6 +106,8 @@
         ed_holiday: document.getElementById("ed_holiday"),
         ed_holidayChoice: document.getElementById("ed_holidayChoice"),
         ed_holidayWorked: document.getElementById("ed_holidayWorked"),
+        ed_holidayPayEnabled: document.getElementById("ed_holidayPayEnabled"),
+        ed_holidayPayControl: document.getElementById("ed_holidayPayControl"),
         ed_holidayHint: document.getElementById("ed_holidayHint"),
         ed_normalDay: document.getElementById("ed_normalDay"),
         ed_paidOffControl: document.getElementById("ed_paidOffControl"),
@@ -131,6 +136,7 @@
         sundayOrdinaryMultiplier: 1.5,
         sundayMultiplier: 2,
         holidayMultiplier: 2,
+        holidayPayMode: "all-hours",
         cycleStartDay: 21,
         currency: "R",
         defaultBreak: 60,
@@ -148,8 +154,6 @@
 
     let settings = normalizeSettings(loadSettings());
 
-    let entries = loadEntries();
-    let history = loadHistory();
     let selectedDate = null;
     let viewedMonthAnchor = startOfToday();
 
@@ -167,6 +171,10 @@
         { month: 11, day: 25 },
         { month: 11, day: 26 }
     ];
+
+    // Holiday lookup must be ready before normalizing any saved days.
+    let entries = loadEntries();
+    let history = loadHistory();
 
     function clamp(n, lo, hi) {
         const x = Number.isFinite(+n) ? +n : 0;
@@ -189,6 +197,7 @@
             ),
             sundayMultiplier: clamp(source.sundayMultiplier ?? DEFAULT_SETTINGS.sundayMultiplier, 1, 10),
             holidayMultiplier: clamp(source.holidayMultiplier ?? DEFAULT_SETTINGS.holidayMultiplier, 1, 10),
+            holidayPayMode: source.holidayPayMode === "daily-wage" ? "daily-wage" : "all-hours",
             cycleStartDay: clamp(source.cycleStartDay ?? DEFAULT_SETTINGS.cycleStartDay, 1, 28),
             currency: String(source.currency || DEFAULT_SETTINGS.currency).replace(/[<>]/g, "").slice(0, 4),
             defaultBreak: clamp(source.defaultBreak ?? DEFAULT_SETTINGS.defaultBreak, 0, 24 * 60),
@@ -416,10 +425,6 @@
         }
     }
 
-    function saveEntries() {
-        return persistJson(STORE.ENTRIES, entries);
-    }
-
     function loadHistory() {
         try {
             return normalizeHistory(JSON.parse(localStorage.getItem(STORE.HISTORY) || "[]"));
@@ -428,8 +433,26 @@
         }
     }
 
-    function saveHistory() {
-        return persistJson(STORE.HISTORY, history);
+    function persistEntryState(nextEntries, nextHistory = history) {
+        const previous = new Map();
+        try {
+            for (const key of [STORE.ENTRIES, STORE.HISTORY]) previous.set(key, localStorage.getItem(key));
+            // Keep both halves of a cycle move together; never remove active rows first.
+            localStorage.setItem(STORE.HISTORY, JSON.stringify(nextHistory));
+            localStorage.setItem(STORE.ENTRIES, JSON.stringify(nextEntries));
+        } catch {
+            for (const [key, value] of previous) {
+                try {
+                    if (value === null) localStorage.removeItem(key);
+                    else localStorage.setItem(key, value);
+                } catch { /* Best-effort rollback when device storage is unavailable. */ }
+            }
+            window.alert("WorkPay could not save this change. Check browser storage and try again. Your changes are still open.");
+            return false;
+        }
+        entries = nextEntries;
+        history = nextHistory;
+        return true;
     }
 
     function nextCreatedAt() {
@@ -463,7 +486,8 @@
         const overrides = source.overrides && typeof source.overrides === "object"
             ? { ...source.overrides, useGlobal: source.overrides.useGlobal !== false }
             : { useGlobal: true };
-        if (overrides.useGlobal === false && Number.isFinite(+overrides.otThreshold)) {
+        if (overrides.useGlobal === false && !overrides.holidayPayMode) overrides.holidayPayMode = "daily-wage";
+        if (overrides.useGlobal === false && overrides.otThreshold != null && Number.isFinite(+overrides.otThreshold)) {
             overrides.ordinaryDailyHours = clamp(overrides.otThreshold, 0, 24);
         }
 
@@ -475,6 +499,7 @@
             breakMin: clamp(source.breakMin ?? 0, 0, 24 * 60),
             isHoliday: !!source.isHoliday,
             holidayWorked,
+            holidayPayEnabled: source.holidayPayEnabled !== false,
             holidayWasOrdinaryWorkday,
             paidOff: !holiday && !!source.paidOff,
             applyOvertime: usesOvertime(source),
@@ -572,7 +597,8 @@
                 otMultiplier: clamp(o.otMultiplier ?? settings.otMultiplier, 1, 10),
                 sundayMultiplier: clamp(o.sundayMultiplier ?? configuredSundayMultiplier, 1, 10),
                 holidayMultiplier: clamp(o.holidayMultiplier ?? settings.holidayMultiplier, 1, 10),
-                ordinaryDailyHours: Number.isFinite(+o.ordinaryDailyHours)
+                holidayPayMode: o.holidayPayMode ?? settings.holidayPayMode,
+                ordinaryDailyHours: o.ordinaryDailyHours != null && Number.isFinite(+o.ordinaryDailyHours)
                     ? clamp(o.ordinaryDailyHours, 0, 24)
                     : null,
                 usualSunday
@@ -621,9 +647,10 @@
         const holidayOrdinaryWorkday = holiday && (typeof row.holidayWasOrdinaryWorkday === "boolean"
             ? row.holidayWasOrdinaryWorkday
             : scheduledPaidHours > 0);
+        const holidayPayEnabled = row.holidayPayEnabled !== false;
         const paidHours = paidOff
             ? (frozenDailyHours ?? (hasConfiguredSchedule ? scheduledPaidHours : otTh))
-            : (holiday && !holidayWorked && holidayOrdinaryWorkday ? ordinaryDailyHours : 0);
+            : (holiday && !holidayWorked && holidayOrdinaryWorkday && holidayPayEnabled ? ordinaryDailyHours : 0);
         const paidOffPay = paidHours * hr;
         const specialType = holiday ? "holiday" : (sunday ? "sunday" : "");
         const specialMult = specialType === "holiday" ? Math.max(2, holMul) : (specialType === "sunday" ? sunMul : 1);
@@ -657,7 +684,9 @@
                 workedHours: specialH,
                 ordinarilyWorks: holidayOrdinaryWorkday,
                 worked: holidayWorked,
-                holidayMultiplier: holMul
+                payNotWorked: holidayPayEnabled,
+                holidayMultiplier: holMul,
+                holidayPayMode: rates.holidayPayMode
             });
             specialPay = result.amount;
             holidayRule = result.rule;
@@ -676,7 +705,8 @@
             holidayRule,
             holidayWorked,
             holidayOrdinaryWorkday,
-            holidayNotWorkedPaid: holiday && !holidayWorked && holidayOrdinaryWorkday,
+            holidayPayEnabled,
+            holidayNotWorkedPaid: holiday && !holidayWorked && holidayOrdinaryWorkday && holidayPayEnabled,
             ordinaryDailyHours,
             usualSunday: !!rates.usualSunday,
             paidOff,
@@ -951,7 +981,8 @@
                 otMultiplier: clamp(rates.otMultiplier, 1, 10),
                 sundayMultiplier: clamp(rates.sundayMultiplier, 1, 10),
                 holidayMultiplier: clamp(rates.holidayMultiplier, 1, 10),
-                ordinaryDailyHours: clamp(rates.otThreshold, 0, 24)
+                ordinaryDailyHours: clamp(rates.otThreshold, 0, 24),
+                holidayPayMode: rates.holidayPayMode
             }
         };
     }
@@ -972,10 +1003,11 @@
 
         if (!toArchive.length) return;
 
+        const nextHistory = history.map(cycle => ({ ...cycle, entries: [...cycle.entries] }));
         for (const row of toArchive) {
             const range = getCycleRange(row.dateISO, settings.cycleStartDay);
             const key = cycleKey(range);
-            let cycle = history.find(item => item.key === key);
+            let cycle = nextHistory.find(item => item.key === key);
             if (!cycle) {
                 cycle = {
                     key,
@@ -984,7 +1016,7 @@
                     archivedAt: new Date().toISOString(),
                     entries: []
                 };
-                history.push(cycle);
+                nextHistory.push(cycle);
             }
             const frozenRow = freezeRowForHistory(row);
             const existingIndex = cycle.entries.findIndex(item => item.id === frozenRow.id);
@@ -996,10 +1028,8 @@
             cycle.entries.sort(compareEntriesAsc);
         }
 
-        entries = active;
-        history.sort(compareCyclesDesc);
-        saveEntries();
-        saveHistory();
+        nextHistory.sort(compareCyclesDesc);
+        return persistEntryState(active, nextHistory);
     }
 
     function openSheet(sheet) {
@@ -1017,6 +1047,7 @@
         el.s_sunRegularMult.value = settings.sundayOrdinaryMultiplier ?? 1.5;
         el.s_sunMult.value = settings.sundayMultiplier ?? 2;
         el.s_holMult.value = settings.holidayMultiplier ?? 2;
+        el.s_holidayPayMode.value = settings.holidayPayMode;
         el.s_cycleStart.value = settings.cycleStartDay ?? 21;
         el.s_currency.value = settings.currency ?? "R";
         el.s_defaultBreak.value = settings.defaultBreak ?? 60;
@@ -1028,20 +1059,23 @@
     }
 
     function saveSettingsFromForm() {
-        settings = normalizeSettings({
+        const nextSettings = normalizeSettings({
             hourly: clamp(el.s_hourly.value, 0, 1e9),
             otThreshold: clamp(el.s_otThreshold.value, 0, 24),
             otMultiplier: clamp(el.s_otMultiplier.value, 1, 10),
             sundayOrdinaryMultiplier: clamp(el.s_sunRegularMult.value, 1, 10),
             sundayMultiplier: clamp(el.s_sunMult.value, 1, 10),
             holidayMultiplier: clamp(el.s_holMult.value, 1, 10),
+            holidayPayMode: el.s_holidayPayMode.value,
             cycleStartDay: clamp(el.s_cycleStart.value, 1, 28),
             currency: String(el.s_currency.value || "R").replace(/[<>]/g, "").slice(0, 4),
             defaultBreak: clamp(el.s_defaultBreak.value, 0, 24 * 60),
             annualEarnings: clamp(el.s_annualEarnings.value, 0, 1e12),
             weekTemplate: el.week.map(w => ({ start: w.start.value || "", end: w.end.value || "" }))
         });
-        saveSettings();
+        if (!persistJson(STORE.SETTINGS, nextSettings)) return false;
+        settings = nextSettings;
+        return true;
     }
 
     function entryFromValues(values, existing) {
@@ -1060,6 +1094,7 @@
             breakMin: holiday && !holidayWorked ? 0 : clamp(values.breakMin, 0, 24 * 60),
             isHoliday: !!values.isHoliday,
             holidayWorked,
+            holidayPayEnabled: values.holidayPayEnabled ?? existing?.holidayPayEnabled ?? true,
             holidayWasOrdinaryWorkday,
             paidOff: !holiday && !!values.paidOff,
             applyOvertime: values.applyOvertime !== false,
@@ -1068,7 +1103,7 @@
         };
     }
 
-    function addRow(dateValue, start, end, breakMin, isHoliday, holidayWorked, paidOff, applyOvertime, overrides) {
+    function addRow(dateValue, start, end, breakMin, isHoliday, holidayWorked, paidOff, applyOvertime, overrides, holidayPayEnabled) {
         const dateStr = ymd(dateValue);
         const existingIndex = entries.findIndex(row => ymd(row.dateISO) === dateStr);
         const existing = existingIndex >= 0 ? entries[existingIndex] : null;
@@ -1079,17 +1114,16 @@
             breakMin,
             isHoliday,
             holidayWorked,
+            holidayPayEnabled,
             paidOff,
             applyOvertime,
             overrides
         }, existing);
 
-        if (existingIndex >= 0) {
-            entries[existingIndex] = row;
-        } else {
-            entries.push(row);
-        }
-        saveEntries();
+        const nextEntries = [...entries];
+        if (existingIndex >= 0) nextEntries[existingIndex] = row;
+        else nextEntries.push(row);
+        if (!persistEntryState(nextEntries)) return false;
         if (!isInRange(dateStr, getViewedMonthRange())) {
             setViewedMonth(dateStr);
         }
@@ -1103,8 +1137,7 @@
         const ok = window.confirm("Remove this saved work day?");
         if (!ok) return;
         selectedDate = ymd(row.dateISO);
-        entries = entries.filter(item => item.id !== id);
-        saveEntries();
+        if (!persistEntryState(entries.filter(item => item.id !== id))) return;
         render();
     }
 
@@ -1131,8 +1164,7 @@
         }
 
         if (!generated.length) return false;
-        entries.push(...generated);
-        saveEntries();
+        if (!persistEntryState([...entries, ...generated])) return false;
         return true;
     }
 
@@ -1169,8 +1201,7 @@
         );
         if (!ok) return;
 
-        entries = [...entries, ...generated];
-        saveEntries();
+        if (!persistEntryState([...entries, ...generated])) return;
         selectedDate = ymd(range.start);
         render();
     }
@@ -1196,6 +1227,7 @@
         el.ed_date.value = ymd(row.dateISO);
         el.ed_holiday.checked = !!row.isHoliday || isAutoHoliday(row.dateISO);
         el.ed_holidayWorked.checked = !!row.holidayWorked;
+        el.ed_holidayPayEnabled.checked = row.holidayPayEnabled !== false;
         el.ed_start.value = row.start || "";
         el.ed_end.value = row.end || "";
         el.ed_break.value = row.breakMin ?? settings.defaultBreak;
@@ -1216,6 +1248,7 @@
         const holiday = isAutoHoliday(date);
         el.ed_holiday.checked = holiday;
         el.ed_holidayWorked.checked = false;
+        el.ed_holidayPayEnabled.checked = true;
         el.ed_start.value = holiday ? "" : (template.start || "");
         el.ed_end.value = holiday ? "" : (template.end || "");
         el.ed_break.value = clamp(settings.defaultBreak ?? 60, 0, 24 * 60);
@@ -1241,7 +1274,8 @@
             otThreshold: el.ed_otTh.value ? clamp(el.ed_otTh.value, 0, 24) : null,
             otMultiplier: el.ed_otMul.value ? clamp(el.ed_otMul.value, 1, 10) : null,
             sundayMultiplier: el.ed_sunMul.value ? clamp(el.ed_sunMul.value, 1, 10) : null,
-            holidayMultiplier: el.ed_holMul.value ? clamp(el.ed_holMul.value, 1, 10) : null
+            holidayMultiplier: el.ed_holMul.value ? clamp(el.ed_holMul.value, 1, 10) : null,
+            holidayPayMode: existing?.overrides?.holidayPayMode ?? settings.holidayPayMode
         };
         const holiday = !!el.ed_holiday.checked || isAutoHoliday(dateStr);
         const holidayWorked = holiday && !!el.ed_holidayWorked.checked;
@@ -1252,22 +1286,21 @@
             breakMin: holiday && !holidayWorked ? 0 : el.ed_break.value,
             isHoliday: holiday,
             holidayWorked,
+            holidayPayEnabled: !!el.ed_holidayPayEnabled.checked,
             paidOff: !holiday && !!el.ed_paidOff.checked,
             applyOvertime: !!el.ed_applyOt.checked,
             overrides
         }, existing);
 
-        if (existingIndex >= 0) {
-            entries[existingIndex] = row;
-        } else {
-            entries.push(row);
-        }
+        const nextEntries = [...entries];
+        if (existingIndex >= 0) nextEntries[existingIndex] = row;
+        else nextEntries.push(row);
+        if (!persistEntryState(nextEntries)) return false;
 
         selectedDate = dateStr;
         if (!isInRange(dateStr, getViewedMonthRange())) {
             setViewedMonth(dateStr);
         }
-        saveEntries();
         closeSheet(el.editSheet);
         render();
     }
@@ -1275,6 +1308,8 @@
     function autoTickHoliday(dateStr) {
         el.qa_holiday.checked = !!dateStr && isAutoHoliday(dateStr);
         el.qa_holidayWorked.checked = false;
+        const existing = allEntries().find(row => ymd(row.dateISO) === dateStr);
+        el.qa_holidayPayEnabled.checked = existing?.holidayPayEnabled !== false;
     }
 
     function prefillQuickAddForDate(dateStr) {
@@ -1305,11 +1340,14 @@
         const workedField = isEdit ? el.ed_holidayWorked : el.qa_holidayWorked;
         const choice = isEdit ? el.ed_holidayChoice : el.qa_holidayChoice;
         const hint = isEdit ? el.ed_holidayHint : el.qa_holidayHint;
+        const payField = isEdit ? el.ed_holidayPayEnabled : el.qa_holidayPayEnabled;
+        const payControl = isEdit ? el.ed_holidayPayControl : el.qa_holidayPayControl;
         const paidOffField = isEdit ? el.ed_paidOff : el.qa_paidOff;
         const paidOffControl = isEdit ? el.ed_paidOffControl : el.qa_paidOffControl;
         const automaticHoliday = isAutoHoliday(dateField.value);
         const holiday = !!holidayField.checked || automaticHoliday;
         const holidayWorked = holiday && !!workedField.checked;
+        payControl.hidden = !holiday || holidayWorked;
         const workTimeFields = isEdit ? el.ed_workTimeFields : el.qa_workTimeFields;
         const applyOtControl = isEdit ? el.ed_applyOtControl : el.qa_applyOtControl;
         const applyOtField = isEdit ? el.ed_applyOt : el.qa_applyOt;
@@ -1325,21 +1363,26 @@
         const template = settings.weekTemplate[date.getDay()] || { start: "", end: "" };
         const ordinarilyWorks = parseTime(template.start) !== null && parseTime(template.end) !== null;
         const normalPaidHours = clamp(settings.otThreshold, 0, 24);
+        const doubleAllHours = settings.holidayPayMode === "all-hours";
         if (isEdit) el.ed_normalDay.hidden = holiday || date.getDay() === 0;
 
         if (holiday) {
             if (holidayWorked) {
-                hint.textContent = ordinarilyWorks
-                    ? `Worked: at least a double ${normalPaidHours.toFixed(2)}h day, or ${normalPaidHours.toFixed(2)}h plus your actual worked hours when that is greater. Normal 1.5× OT is not added.`
-                    : `Worked on a non-scheduled day: ${normalPaidHours.toFixed(2)}h ordinary daily pay plus your actual worked hours. Normal 1.5× OT is not added.`;
+                hint.textContent = doubleAllHours
+                    ? "Worked: every worked hour uses the holiday multiplier, with the SA daily-wage minimum. No separate overtime is added."
+                    : ordinarilyWorks
+                    ? `Worked: at least a double ${normalPaidHours.toFixed(2)}h day, or ${normalPaidHours.toFixed(2)}h plus your actual worked hours when that is greater. No separate normal overtime premium is added.`
+                    : `Worked on a non-scheduled day: ${normalPaidHours.toFixed(2)}h ordinary daily pay plus your actual worked hours. No separate normal overtime premium is added.`;
                 if (prefillWorkedTimes) {
                     if (!((isEdit ? el.ed_start : el.qa_start).value)) (isEdit ? el.ed_start : el.qa_start).value = template.start || "";
                     if (!((isEdit ? el.ed_end : el.qa_end).value)) (isEdit ? el.ed_end : el.qa_end).value = template.end || "";
                     if (!((isEdit ? el.ed_break : el.qa_break).value)) (isEdit ? el.ed_break : el.qa_break).value = String(settings.defaultBreak || 0);
                 }
             } else {
-                hint.textContent = ordinarilyWorks
-                    ? `Not worked: WorkPay automatically keeps ${normalPaidHours.toFixed(2)} normal paid hours.`
+                hint.textContent = !payField.checked
+                    ? "Not worked: holiday pay is excluded from your estimate."
+                    : ordinarilyWorks
+                    ? `Not worked: WorkPay keeps ${normalPaidHours.toFixed(2)} normal paid hours.`
                     : "Not worked: this is not in your Week Template, so no holiday payment is added.";
             }
         }
@@ -1374,17 +1417,19 @@
             start = start || template.start || "";
             end = end || template.end || "";
         }
-        addRow(
+        const saved = addRow(
             dateStr,
             start,
             end,
-            el.qa_break.value || settings.defaultBreak || 0,
+            el.qa_break.value === "" ? (settings.defaultBreak || 0) : el.qa_break.value,
             holiday,
             holidayWorked,
             !holiday && !!el.qa_paidOff.checked,
             !!el.qa_applyOt.checked,
-            { useGlobal: true }
+            { useGlobal: true },
+            !!el.qa_holidayPayEnabled.checked
         );
+        if (saved === false) return;
         const nextDate = addDays(dateStr, 1);
         applyQuickAddDate(nextDate ? ymd(nextDate) : ymd(startOfToday()), true);
     }
@@ -1395,8 +1440,9 @@
             if (!calc.holidayWorked) {
                 return calc.holidayNotWorkedPaid
                     ? "Public holiday not worked · normal day pay"
-                    : "Public holiday not worked · not a scheduled day";
+                    : (!calc.holidayPayEnabled ? "Public holiday not worked · pay excluded" : "Public holiday not worked · not a scheduled day");
             }
+            if (calc.holidayRule === "worked-hours-multiplier") return `Public holiday worked · ${calc.multiplier.toFixed(2)}× every worked hour`;
             if (!calc.holidayOrdinaryWorkday) return "Public holiday worked · daily wage plus time worked";
             return calc.holidayRule === "ordinary-day-worked-daily-plus-time"
                 ? "Public holiday worked · daily wage plus time worked"
@@ -1407,7 +1453,7 @@
             return calc.specialFloorApplied ? `${base} · daily-wage minimum` : `${base} on all hours`;
         }
         if (calc.otH > 0) return `OT x${calc.otMultiplier.toFixed(2)} after ${calc.otThreshold.toFixed(2)}h`;
-        if (!calc.usesOvertime) return "Overtime off";
+        if (!calc.usesOvertime) return "Overtime premium off · normal rate on worked hours";
         return "Standard pay";
     }
 
@@ -1416,6 +1462,7 @@
         if (calc.holidayNotWorkedPaid) return `Paid normal day ${calc.paidHours.toFixed(2)}h · worked 0.00h`;
         if (calc.specialType === "holiday" && !calc.holidayWorked) return "No scheduled holiday pay";
         if (calc.specialType === "holiday" && calc.holidayWorked) {
+            if (calc.holidayRule === "worked-hours-multiplier") return `Worked ${calc.specialH.toFixed(2)}h × ${calc.multiplier.toFixed(2)} · no separate OT`;
             if (!calc.holidayOrdinaryWorkday || calc.holidayRule === "ordinary-day-worked-daily-plus-time") {
                 return `Normal-day base ${calc.ordinaryDailyHours.toFixed(2)}h + worked ${calc.specialH.toFixed(2)}h`;
             }
@@ -1752,6 +1799,7 @@
             "Holiday",
             "HolidayStatus",
             "NormallyScheduledHoliday",
+            "UnworkedHolidayPayEnabled",
             "PaidOff",
             "AutoOT",
             "NormalHours",
@@ -1776,6 +1824,7 @@
                 (row.isHoliday || isAutoHoliday(row.dateISO)) ? "Yes" : "No",
                 calc.specialType === "holiday" ? (calc.holidayWorked ? "Worked" : "Not worked") : "N/A",
                 calc.specialType === "holiday" ? (calc.holidayOrdinaryWorkday ? "Yes" : "No") : "N/A",
+                calc.specialType === "holiday" && !calc.holidayWorked ? (calc.holidayPayEnabled ? "Yes" : "No") : "N/A",
                 row.paidOff ? "Yes" : "No",
                 autoOt,
                 calc.normalH.toFixed(2),
@@ -1808,7 +1857,7 @@
     el.closeSettingsBtn.addEventListener("click", () => closeSheet(el.settingsSheet));
     el.settingsForm.addEventListener("submit", event => {
         event.preventDefault();
-        saveSettingsFromForm();
+        if (!saveSettingsFromForm()) return;
         archiveCompletedCycles();
         closeSheet(el.settingsSheet);
         render();
@@ -1826,6 +1875,7 @@
         el.ed_holidayWorked.checked = false;
         syncSpecialDayControls("edit");
     });
+    el.ed_holidayPayEnabled.addEventListener("change", () => syncSpecialDayControls("edit"));
     el.ed_holidayWorked.addEventListener("change", () => syncSpecialDayControls("edit", true));
     el.ed_date.addEventListener("change", () => {
         if (!el.ed_id.value || isAutoHoliday(el.ed_date.value)) {
@@ -1856,6 +1906,7 @@
         el.qa_holidayWorked.checked = false;
         syncSpecialDayControls("quick");
     });
+    el.qa_holidayPayEnabled.addEventListener("change", () => syncSpecialDayControls("quick"));
     el.qa_holidayWorked.addEventListener("change", () => syncSpecialDayControls("quick", true));
     el.qa_form.addEventListener("submit", submitQuickAdd);
     el.fabExport.addEventListener("click", exportCsv);
@@ -1876,8 +1927,6 @@
         entries = normalizeEntries(entries);
         history = normalizeHistory(history);
         saveSettings();
-        saveEntries();
-        saveHistory();
         el.qa_applyOt.checked = true;
         setAutoDate();
         syncSpecialDayControls("quick");

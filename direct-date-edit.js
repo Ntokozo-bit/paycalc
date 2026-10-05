@@ -29,6 +29,8 @@
         holiday: document.getElementById("ed_holiday"),
         holidayChoice: document.getElementById("ed_holidayChoice"),
         holidayWorked: document.getElementById("ed_holidayWorked"),
+        holidayPayEnabled: document.getElementById("ed_holidayPayEnabled"),
+        holidayPayControl: document.getElementById("ed_holidayPayControl"),
         holidayHint: document.getElementById("ed_holidayHint"),
         normalDay: document.getElementById("ed_normalDay"),
         workTimeFields: document.getElementById("ed_workTimeFields"),
@@ -502,6 +504,7 @@
         fields.holiday.checked = holiday;
         fields.holiday.disabled = automaticHoliday;
         fields.holidayChoice.hidden = !holiday;
+        fields.holidayPayControl.hidden = !holiday || holidayWorked;
         fields.paidOffControl.hidden = holiday;
         fields.normalDay.hidden = holiday || date?.getDay() === 0;
         if (holiday) fields.paidOff.checked = false;
@@ -509,17 +512,21 @@
 
         if (holiday) {
             if (holidayWorked) {
-                fields.holidayHint.textContent = ordinarilyWorks
-                    ? `Worked: at least a double ${normalPaidHours.toFixed(2)}h day, or ${normalPaidHours.toFixed(2)}h plus your actual worked hours when that is greater. Normal 1.5× OT is not added.`
-                    : `Worked on a non-scheduled day: ${normalPaidHours.toFixed(2)}h ordinary daily pay plus your actual worked hours. Normal 1.5× OT is not added.`;
+                fields.holidayHint.textContent = (pendingHistoricalEdit?.row.overrides?.holidayPayMode ?? settings.holidayPayMode ?? "all-hours") === "all-hours"
+                    ? "Worked: every worked hour uses the holiday multiplier, with the SA daily-wage minimum. No separate overtime is added."
+                    : ordinarilyWorks
+                    ? `Worked: at least a double ${normalPaidHours.toFixed(2)}h day, or ${normalPaidHours.toFixed(2)}h plus your actual worked hours when that is greater. No separate normal overtime premium is added.`
+                    : `Worked on a non-scheduled day: ${normalPaidHours.toFixed(2)}h ordinary daily pay plus your actual worked hours. No separate normal overtime premium is added.`;
                 if (prefillWorkedTimes) {
                     if (!fields.start.value) fields.start.value = template.start || "";
                     if (!fields.end.value) fields.end.value = template.end || "";
                     if (!fields.breakMin.value) fields.breakMin.value = String(settings.defaultBreak || 0);
                 }
             } else {
-                fields.holidayHint.textContent = ordinarilyWorks
-                    ? `Not worked: WorkPay automatically keeps ${normalPaidHours.toFixed(2)} normal paid hours.`
+                fields.holidayHint.textContent = !fields.holidayPayEnabled.checked
+                    ? "Not worked: holiday pay is excluded from your estimate."
+                    : ordinarilyWorks
+                    ? `Not worked: WorkPay keeps ${normalPaidHours.toFixed(2)} normal paid hours.`
                     : "Not worked: this is not in your Week Template, so no holiday payment is added.";
             }
         }
@@ -565,6 +572,7 @@
         fields.date.value = dateStr;
         fields.holiday.checked = row ? (!!row.isHoliday || isAutoHoliday(dateStr)) : isAutoHoliday(dateStr);
         fields.holidayWorked.checked = row ? !!row.holidayWorked : false;
+        fields.holidayPayEnabled.checked = row?.holidayPayEnabled !== false;
         const notWorkedHoliday = fields.holiday.checked && !fields.holidayWorked.checked;
         fields.start.value = notWorkedHoliday ? "" : (row?.start || template.start || "");
         fields.end.value = notWorkedHoliday ? "" : (row?.end || template.end || "");
@@ -645,7 +653,7 @@
         const template = date && Array.isArray(settings.weekTemplate)
             ? (settings.weekTemplate[date.getDay()] || {})
             : {};
-        const sameDate = dateKey(pendingHistoricalEdit.row.dateISO) === dateStr;
+        const sameDate = localDateKey(pendingHistoricalEdit.row.dateISO) === dateStr;
         const holidayWasOrdinaryWorkday = holiday && sameDate
             && typeof pendingHistoricalEdit.row.holidayWasOrdinaryWorkday === "boolean"
             ? pendingHistoricalEdit.row.holidayWasOrdinaryWorkday
@@ -660,10 +668,11 @@
             breakMin: holiday && !holidayWorked ? 0 : clamp(fields.breakMin.value, 0, 1440),
             isHoliday: holiday,
             holidayWorked,
+            holidayPayEnabled: !!fields.holidayPayEnabled.checked,
             holidayWasOrdinaryWorkday,
             paidOff: !holiday && !!fields.paidOff.checked,
             applyOvertime: !!fields.applyOt.checked,
-            overrides: buildOverridesFromForm()
+            overrides: { ...buildOverridesFromForm(), holidayPayMode: pendingHistoricalEdit.row.overrides?.holidayPayMode ?? settings.holidayPayMode ?? "all-hours" }
         });
 
         if (!writeHistoricalMove(cleanActive, cleanHistory)) {
@@ -705,6 +714,7 @@
         fields.holidayWorked.checked = false;
         syncSpecialDayControls();
     });
+    fields.holidayPayEnabled.addEventListener("change", () => syncSpecialDayControls());
     fields.holidayWorked.addEventListener("change", () => syncSpecialDayControls(true));
     fields.useGlobal.addEventListener("change", () => {
         fields.overrides.hidden = !!fields.useGlobal.checked;

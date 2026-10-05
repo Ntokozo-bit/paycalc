@@ -1,0 +1,11 @@
+{
+  "name": "workpay",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node tests/regression.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "26.1.0"
+  }
+}
