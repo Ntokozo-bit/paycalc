@@ -5,9 +5,9 @@ WorkPay is a fast, private work-hours and pay-cycle calculator designed for Sout
 ## What it does
 
 - Tracks normal, overtime, Sunday and public-holiday hours
-- Separates public holidays not worked from holidays worked: a normally scheduled holiday not worked keeps ordinary pay, while holiday work can double every worked hour (including extra time) or follow the BCEA daily-wage formula, with the daily-wage minimum preserved
+- Separates public holidays not worked from holidays worked: an eligible normally scheduled holiday not worked keeps ordinary pay, while holiday work can double every worked hour (including extra time) or follow the BCEA daily-wage formula, with the daily-wage minimum preserved
 - Uses different pay defaults for usual Sundays (1.5×) and occasional Sundays (2×)
-- Detects and saves South African public holidays automatically, including Monday observance when a holiday falls on Sunday; scheduled holidays receive the normal paid-day base, with a per-day option to exclude unworked holiday pay from the estimate
+- Detects and saves South African public holidays automatically, including Monday observance when a holiday falls on Sunday; eligible scheduled holidays receive the normal paid-day base, with a per-day option to exclude unworked holiday pay from the estimate
 - Uses Normal Paid Hours / OT Starts After as the ordinary paid day for scheduled holiday calculations
 - Lets users edit saved days in current and completed pay cycles
 - Checks the visible pay month for common BCEA flags such as 45-hour weeks, overtime, meal intervals, rest time and night work
@@ -47,3 +47,7 @@ npm test
 ```
 
 The tests cover reload persistence, current and historical editing, failed saves, normal/overtime separation, zero-minute breaks, holiday formulas and exact offline asset versions. Dependencies are for tests only; the app still runs without a build step.
+
+## Employment and unpaid time
+
+In Settings, enable unworked scheduled holiday pay only when it applies to you. New setups start with this off; existing setups retain their preference. Employment start and contract end (inclusive) limit unworked holiday pay, including holidays already saved. An unpaid time-away start/end excludes that period; a blank end means it is ongoing. Paid leave should not be marked as unpaid. Auto-Fill skips dates outside employment and during unpaid time. Explicitly recorded work and earlier eligible holidays keep their pay.

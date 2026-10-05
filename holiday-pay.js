@@ -71,5 +71,25 @@
         };
     }
 
-    return { calculatePublicHolidayPay };
+    function getEmploymentDayStatus(settings, dateKey) {
+        const start = settings?.employmentStart || "";
+        const end = settings?.employmentEnd || "";
+        if (start && dateKey < start) return { eligible: false, reason: "Before your employment start date" };
+        if (end && dateKey > end) return { eligible: false, reason: "After your contract end date" };
+        const unpaidStart = settings?.unpaidStart || "";
+        const unpaidEnd = settings?.unpaidEnd || "";
+        if (unpaidStart && dateKey >= unpaidStart && (!unpaidEnd || dateKey <= unpaidEnd)) {
+            return { eligible: false, reason: "Recorded unpaid time away" };
+        }
+        return { eligible: true, reason: "" };
+    }
+
+    function getHolidayPayEligibility(settings, dateKey) {
+        const employment = getEmploymentDayStatus(settings, dateKey);
+        if (!employment.eligible) return employment;
+        if (settings?.autoHolidayPay === false) return { eligible: false, reason: "Automatic unworked holiday pay is off" };
+        return employment;
+    }
+
+    return { calculatePublicHolidayPay, getEmploymentDayStatus, getHolidayPayEligibility };
 });

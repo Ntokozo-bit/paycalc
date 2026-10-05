@@ -338,6 +338,25 @@
             </fieldset>
 
             <fieldset class="group">
+                <legend>Employment & Unpaid Time</legend>
+                <label class="control chk full">
+                    <span class="lab">Include pay for unworked scheduled holidays</span>
+                    <input type="checkbox" id="s_autoHolidayPay" />
+                </label>
+                <p class="helper">Turn this off if you receive no pay for unworked holidays. Your Week Template alone does not prove that you are still employed.</p>
+                <div class="row two">
+                    <label class="control"><span class="lab">Employment start (optional)</span><input type="date" id="s_employmentStart" /></label>
+                    <label class="control"><span class="lab">Contract end / last employed day (optional)</span><input type="date" id="s_employmentEnd" /></label>
+                </div>
+                <p class="helper">Unworked holidays before the start or after the contract end add no pay. Leave a date blank if that boundary does not apply.</p>
+                <div class="row two">
+                    <label class="control"><span class="lab">Unpaid time away starts (optional)</span><input type="date" id="s_unpaidStart" /></label>
+                    <label class="control"><span class="lab">Unpaid time away ends (optional)</span><input type="date" id="s_unpaidEnd" /></label>
+                </div>
+                <p class="helper">Use unpaid time away for periods when you receive no pay, not paid leave. Leave its end blank while it continues. Auto-Fill skips dates outside employment and during this unpaid period. Work you record yourself keeps its pay.</p>
+            </fieldset>
+
+            <fieldset class="group">
                 <legend>Week Template</legend>
                 <p class="helper">Leave start and end empty for days you usually do not work.</p>
                 <div class="week">
@@ -470,8 +489,8 @@
 
                 <section class="help-topic">
                     <h3>Public holidays</h3>
-                    <p>WorkPay detects South African public holidays automatically. If the holiday is normally a workday, it is saved with your Normal Paid Hours even when you do not work. Edit the day and switch off “Include normal pay” to exclude it from your estimate.</p>
-                    <p>Only turn on <strong>I worked this public holiday</strong> when you actually worked, then enter your start, finish, and break. Holiday work uses the BCEA daily-wage formula and does not add normal 1.5× overtime.</p>
+                    <p>WorkPay detects South African public holidays automatically. Unworked holiday pay is included only when enabled in Settings, the day is normally scheduled, and it falls within your employment dates and outside any unpaid period. Edit the day and switch off “Include normal pay” to exclude it from your estimate.</p>
+                    <p>Only turn on <strong>I worked this public holiday</strong> when you actually worked, then enter your start, finish, and break. Holiday work uses your chosen holiday formula with the SA daily-wage minimum and does not add normal 1.5× overtime.</p>
                 </section>
 
                 <section class="help-topic">
@@ -520,9 +539,9 @@
 
     <div class="toast" id="workpayToast" role="status" aria-live="polite" aria-atomic="true" hidden></div>
 
-    <script src="holiday-pay.js?v=10" defer></script>
-    <script src="core.js?v=10" defer></script>
-    <script src="direct-date-edit.js?v=10" defer></script>
-    <script src="app.js?v=10" defer></script>
+    <script src="holiday-pay.js?v=11" defer></script>
+    <script src="core.js?v=11" defer></script>
+    <script src="direct-date-edit.js?v=11" defer></script>
+    <script src="app.js?v=11" defer></script>
 </body>
 </html>

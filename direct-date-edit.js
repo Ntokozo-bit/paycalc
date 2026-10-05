@@ -500,6 +500,8 @@
         const ordinarilyWorks = /^\d{2}:\d{2}$/.test(template.start || "")
             && /^\d{2}:\d{2}$/.test(template.end || "");
         const normalPaidHours = clamp(settings.otThreshold ?? 9, 0, 24);
+        const holidayEligibility = window.WorkPayRules.getHolidayPayEligibility(settings, fields.date.value);
+        fields.holidayPayEnabled.disabled = !holidayEligibility.eligible;
 
         fields.holiday.checked = holiday;
         fields.holiday.disabled = automaticHoliday;
@@ -523,7 +525,9 @@
                     if (!fields.breakMin.value) fields.breakMin.value = String(settings.defaultBreak || 0);
                 }
             } else {
-                fields.holidayHint.textContent = !fields.holidayPayEnabled.checked
+                fields.holidayHint.textContent = !holidayEligibility.eligible
+                    ? `Not worked: no holiday pay. ${holidayEligibility.reason}.`
+                    : !fields.holidayPayEnabled.checked
                     ? "Not worked: holiday pay is excluded from your estimate."
                     : ordinarilyWorks
                     ? `Not worked: WorkPay keeps ${normalPaidHours.toFixed(2)} normal paid hours.`

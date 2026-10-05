@@ -1,7 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { calculatePublicHolidayPay } = require("../holiday-pay.js");
+const { calculatePublicHolidayPay, getHolidayPayEligibility } = require("../holiday-pay.js");
 
 function pay(overrides) {
     return calculatePublicHolidayPay({
@@ -31,4 +31,10 @@ assert.equal(pay({ worked: true, workedHours: 4, ordinaryDailyHours: 9, holidayP
 assert.equal(pay({ ordinarilyWorks: false, worked: true, workedHours: 4, ordinaryDailyHours: 9, holidayPayMode: "all-hours" }).amount, 1300, "non-scheduled holiday retains daily-plus-time minimum");
 assert.equal(pay({ worked: false, payNotWorked: false }).amount, 0, "explicit unworked holiday exclusion");
 assert.equal(pay({ worked: true, workedHours: 10, payNotWorked: false, holidayPayMode: "all-hours" }).amount, 2000, "unworked pay switch does not suppress worked holiday pay");
+const contract = { autoHolidayPay: true, employmentStart: "2026-12-16", employmentEnd: "2026-12-25" };
+assert.equal(getHolidayPayEligibility(contract, "2026-12-16").eligible, true, "start day is included");
+assert.equal(getHolidayPayEligibility(contract, "2026-12-25").eligible, true, "last employed day is included");
+assert.equal(getHolidayPayEligibility(contract, "2026-12-15").eligible, false, "before employment is unpaid");
+assert.equal(getHolidayPayEligibility(contract, "2026-12-26").eligible, false, "after employment is unpaid");
+assert.equal(getHolidayPayEligibility({ ...contract, unpaidStart: "2026-12-16", unpaidEnd: "2026-12-25" }, "2026-12-25").eligible, false, "last unpaid day remains excluded");
 console.log("holiday pay tests passed");

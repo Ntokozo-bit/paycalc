@@ -151,6 +151,65 @@ async function run() {
         submit(w, "editForm"); assert.equal(rowById(w, "existing").end, "21:00"); assert.equal(money(w), 2250);
         w.close();
     });
+    verify("contract end stops holiday pay across December and January, including saved entries", () => {
+        const holidays = ["2026-12-16", "2026-12-25", "2027-01-01"].map(date => ({
+            id: date, dateISO: date, isHoliday: true, holidayWorked: false,
+            holidayWasOrdinaryWorkday: true, holidayPayEnabled: true
+        }));
+        const dom = boot({ [SETTINGS]: { ...settings, employmentStart: "2026-10-01" }, [ENTRIES]: holidays }); const w = dom.window;
+        assert.equal(money(w), 2700);
+        w.document.getElementById("openSettingsBtn").click();
+        field(w, "s_employmentEnd", "2026-12-20"); submit(w, "settingsForm");
+        assert.equal(money(w), 900); // December 16 is still employed; December 25 and January 1 are not.
+        field(w, "monthPicker", "2027-01"); assert.equal(money(w, "cycleTotal"), 0); assert.equal(money(w, "monthTotal"), 0);
+        edit(w, "2027-01-01");
+        assert.equal(w.document.getElementById("ed_holidayPayEnabled").disabled, true);
+        assert.match(text(w, "ed_holidayHint"), /After your contract end date/);
+        submit(w, "editForm"); assert.equal(money(w), 900);
+        const saved = snapshot(w); w.close(); const reload = boot(saved);
+        assert.equal(money(reload.window), 900); assert.equal(JSON.parse(reload.window.localStorage.getItem(SETTINGS)).employmentEnd, "2026-12-20");
+        reload.window.close();
+    });
+    verify("not employed can disable all automatic unworked holiday pay", () => {
+        const dom = boot({ [SETTINGS]: { ...settings, autoHolidayPay: false } }); const w = dom.window;
+        field(w, "monthPicker", "2026-12"); assert.equal(money(w), 0);
+        field(w, "monthPicker", "2027-01"); assert.equal(money(w), 0);
+        edit(w, "2027-01-01"); assert.match(text(w, "ed_holidayHint"), /Automatic unworked holiday pay is off/);
+        w.close();
+        const fresh = boot();
+        assert.equal(JSON.parse(fresh.window.localStorage.getItem(SETTINGS)).autoHolidayPay, false);
+        fresh.window.close();
+    });
+    verify("unpaid time away excludes holidays, and pay resumes after it ends", () => {
+        const rows = ["2026-12-16", "2026-12-25", "2027-01-01"].map(date => ({ id: date, dateISO: date,
+            isHoliday: true, holidayWorked: false, holidayWasOrdinaryWorkday: true, holidayPayEnabled: true }));
+        const dom = boot({ [SETTINGS]: { ...settings, employmentStart: "2026-10-01", unpaidStart: "2026-12-16", unpaidEnd: "2026-12-31" }, [ENTRIES]: rows }); const w = dom.window;
+        assert.equal(money(w), 900); edit(w, "2026-12-25"); assert.match(text(w, "ed_holidayHint"), /Recorded unpaid time away/);
+        w.document.getElementById("ed_cancel").click(); w.document.getElementById("openSettingsBtn").click();
+        field(w, "s_unpaidEnd", ""); submit(w, "settingsForm"); assert.equal(money(w), 0);
+        const saved = snapshot(w); w.close(); const reload = boot(saved); assert.equal(money(reload.window), 0); reload.window.close();
+    });
+    verify("employment dates do not remove explicitly recorded work or earlier eligible pay", () => {
+        const dom = boot({ [SETTINGS]: { ...settings, employmentEnd: "2026-10-01", unpaidStart: "2026-10-02" }, [ENTRIES]: [day] }); const w = dom.window;
+        assert.equal(money(w), 2100); // Earlier eligible holiday plus recorded October 5 work.
+        field(w, "monthPicker", "2027-01"); assert.equal(money(w), 2100);
+        w.close();
+    });
+    verify("Auto-Fill skips days outside employment and during unpaid time", () => {
+        const dom = boot({ [SETTINGS]: { ...settings, employmentStart: "2026-10-05", employmentEnd: "2026-10-09", unpaidStart: "2026-10-07", unpaidEnd: "2026-10-08" } }); const w = dom.window;
+        w.document.getElementById("autoFillCycleBtn").click();
+        for (const date of ["2026-10-05", "2026-10-06", "2026-10-09"]) assert.ok(rowByDate(w, date)?.start);
+        for (const date of ["2026-10-02", "2026-10-07", "2026-10-08", "2026-10-12"]) assert.equal(rowByDate(w, date), undefined);
+        w.close();
+    });
+    verify("invalid employment and unpaid ranges leave saved settings unchanged", () => {
+        const dom = boot({ [SETTINGS]: settings }); const w = dom.window; const previous = snapshot(w);
+        w.document.getElementById("openSettingsBtn").click();
+        field(w, "s_employmentStart", "2026-12-31"); field(w, "s_employmentEnd", "2026-12-01"); submit(w, "settingsForm");
+        assert.deepEqual(JSON.parse(w.localStorage.getItem(SETTINGS)), previous[SETTINGS]); assert.equal(w.document.getElementById("settingsSheet").getAttribute("aria-hidden"), "false");
+        field(w, "s_employmentStart", ""); field(w, "s_employmentEnd", ""); field(w, "s_unpaidEnd", "2026-12-31"); submit(w, "settingsForm");
+        assert.deepEqual(JSON.parse(w.localStorage.getItem(SETTINGS)), previous[SETTINGS]); assert.equal(w.alerts.length, 2); w.close();
+    });
     const dom = boot({ [SETTINGS]: settings }); const w = dom.window;
     edit(w, "2026-10-05"); w.document.getElementById("ed_normalDay").click();
     await new Promise(resolve => setTimeout(resolve, 500));
