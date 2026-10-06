@@ -639,7 +639,6 @@
 
         const hours = (row.notWorking || paidOff || (holiday && !holidayWorked)) ? 0 : totalMin / 60;
         const scheduledPaidHours = scheduledHoursForDate(row.dateISO);
-        const hasConfiguredSchedule = configuredScheduleHours().length > 0;
         const frozenDailyHours = rates.ordinaryDailyHours;
         // The user-defined normal paid day is also the daily overtime point.
         // Keep entitlement tied to the Week Template, but use this explicit
@@ -651,7 +650,7 @@
             : scheduledPaidHours > 0);
         const holidayPayEnabled = !row.notWorking && row.holidayPayEnabled !== false;
         const paidHours = paidOff
-            ? (frozenDailyHours ?? (hasConfiguredSchedule ? scheduledPaidHours : otTh))
+            ? ordinaryDailyHours
             : (holiday && !holidayWorked && holidayOrdinaryWorkday && holidayPayEnabled ? ordinaryDailyHours : 0);
         const paidOffPay = paidHours * hr;
         const specialType = holiday ? "holiday" : (sunday ? "sunday" : "");
