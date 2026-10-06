@@ -211,11 +211,15 @@ async function run() {
         assert.equal(rowByDate(w, "2026-10-05").notWorking, true);
         assert.ok(rowByDate(w, "2026-10-06").start); w.close();
     });
-    verify("paid off Sunday receives ordinary pay once, without a Sunday work premium", () => {
-        const template = Array.from({ length: 7 }, () => ({ start: "08:00", end: "18:00" }));
+    verify("paid off day uses Normal Paid Hours without overtime or a Sunday premium", () => {
+        const template = Array.from({ length: 7 }, () => ({ start: "08:00", end: "20:00" }));
         const dom = boot({ [SETTINGS]: { ...settings, weekTemplate: template } }); const w = dom.window;
         edit(w, "2026-10-04"); field(w, "ed_dayChoice", "paid-off"); submit(w, "editForm");
-        assert.equal(money(w), 900); assert.equal(text(w, "allTimeHours"), "0.00h"); w.close();
+        assert.equal(money(w), 900);
+        assert.match(text(w, "entryList"), /Paid off base day \(9\.00h\)/);
+        assert.equal(text(w, "allTimeHours"), "0.00h");
+        assert.equal(text(w, "allTimeOvertimeHours"), "0.00h");
+        w.close();
     });
     verify("ordinary overtime can be toggled and zero extra time adds no OT", () => {
         const dom = boot({ [SETTINGS]: settings, [ENTRIES]: [day] }); const w = dom.window;
